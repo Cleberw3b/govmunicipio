@@ -1,0 +1,41 @@
+{
+  "name": "@govmunicipio/api",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "nest start",
+    "start:prod": "node dist/main",
+    "lint": "tsc --noEmit",
+    "clean": "rm -rf dist node_modules"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11",
+    "@nestjs/core": "^11",
+    "@nestjs/platform-express": "^11",
+    "@nestjs/config": "^4",
+    "@nestjs/typeorm": "^11",
+    "@nestjs/passport": "^11",
+    "@nestjs/jwt": "^11",
+    "typeorm": "^0.3",
+    "pg": "^8",
+    "passport": "^0.7",
+    "passport-jwt": "^4",
+    "bcrypt": "^5",
+    "class-validator": "^0.14",
+    "class-transformer": "^0.5",
+    "reflect-metadata": "^0.2",
+    "rxjs": "^7",
+    "uuid": "^11",
+    "@govmunicipio/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11",
+    "@types/node": "^22",
+    "@types/passport-jwt": "^4",
+    "@types/bcrypt": "^5",
+    "@types/uuid": "^10",
+    "typescript": "^5"
+  }
+}
