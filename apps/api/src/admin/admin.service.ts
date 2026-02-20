@@ -166,18 +166,27 @@ export class AdminService {
     });
     if (!principal) throw new NotFoundException(`User ${id} not found`);
 
+    if (!principal.person) {
+      throw new BadRequestException(`User ${id} has no associated person record`);
+    }
+
+    const person = principal.person;
+
     await this.dataSource.transaction(async (manager) => {
       const personUpdates: Partial<PersonEntity> = {};
       if (dto.firstName !== undefined) personUpdates.firstName = dto.firstName;
       if (dto.lastName !== undefined) personUpdates.lastName = dto.lastName;
       if (Object.keys(personUpdates).length > 0) {
-        await manager.update(PersonEntity, { id: principal.person!.id }, personUpdates);
+        await manager.update(PersonEntity, { id: person.id }, personUpdates);
       }
 
-      if (dto.cpf !== undefined && principal.person?.identification) {
+      if (dto.cpf !== undefined) {
+        if (!person.identification) {
+          throw new BadRequestException(`User ${id} has no identification record`);
+        }
         await manager.update(
           PersonIdentificationEntity,
-          { id: principal.person.identification.id },
+          { id: person.identification.id },
           { cpf: dto.cpf },
         );
       }
@@ -191,9 +200,14 @@ export class AdminService {
       }
 
       if (dto.roles !== undefined) {
-        const roleEntities = await this.roleRepository.findBy(
-          dto.roles.map((name) => ({ name })),
-        );
+        const roleEntities = await manager.find(RoleEntity, {
+          where: dto.roles.map((name) => ({ name })),
+        });
+        if (roleEntities.length !== dto.roles.length) {
+          const found = roleEntities.map((r) => r.name);
+          const missing = dto.roles.filter((n) => !found.includes(n));
+          throw new NotFoundException(`Roles not found: ${missing.join(', ')}`);
+        }
         const p = await manager.findOne(PrincipalEntity, {
           where: { id },
           relations: { roles: true },
@@ -205,7 +219,7 @@ export class AdminService {
 
     return this.principalRepository.findOne({
       where: { id },
-      relations: { roles: true, organizations: true, person: true },
+      relations: { roles: true, organizations: true, person: { identification: true } },
     }) as Promise<PrincipalEntity>;
   }
 
