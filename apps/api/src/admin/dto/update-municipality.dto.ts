@@ -2,12 +2,13 @@ import {
   IsString,
   IsOptional,
   IsBoolean,
+  IsNotEmpty,
   Length,
   Matches,
 } from 'class-validator';
 
 export class UpdateMunicipalityDto {
-  @IsOptional() @IsString() name?: string;
+  @IsOptional() @IsString() @IsNotEmpty() name?: string;
 
   @IsOptional()
   @IsString()
@@ -16,12 +17,12 @@ export class UpdateMunicipalityDto {
   })
   cnpj?: string;
 
-  @IsOptional() @IsString() ibgeCode?: string;
+  @IsOptional() @IsString() @IsNotEmpty() ibgeCode?: string;
   @IsOptional() @IsString() @Length(2, 2) state?: string;
-  @IsOptional() @IsString() city?: string;
-  @IsOptional() @IsString() street?: string;
-  @IsOptional() @IsString() number?: string;
-  @IsOptional() @IsString() neighborhood?: string;
-  @IsOptional() @IsString() zipCode?: string;
+  @IsOptional() @IsString() @IsNotEmpty() city?: string;
+  @IsOptional() @IsString() @IsNotEmpty() street?: string;
+  @IsOptional() @IsString() @IsNotEmpty() number?: string;
+  @IsOptional() @IsString() @IsNotEmpty() neighborhood?: string;
+  @IsOptional() @IsString() @IsNotEmpty() zipCode?: string;
   @IsOptional() @IsBoolean() isActive?: boolean;
 }

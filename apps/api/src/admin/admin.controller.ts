@@ -42,6 +42,7 @@ export class AdminController {
   }
 
   @Patch('municipalities/:id')
+  @HttpCode(HttpStatus.OK)
   updateMunicipality(
     @Param('id') id: string,
     @Body() dto: UpdateMunicipalityDto,

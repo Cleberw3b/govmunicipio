@@ -1,5 +1,6 @@
 import {
   Injectable,
+  BadRequestException,
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
@@ -163,15 +164,54 @@ export class AdminService {
   ): Promise<MunicipalityEntity> {
     const municipality = await this.findMunicipalityById(id);
 
+    if (dto.cnpj !== undefined) {
+      const conflict = await this.dataSource
+        .getRepository(OrganizationEntity)
+        .findOne({ where: { cnpj: dto.cnpj } });
+      if (conflict && conflict.id !== municipality.organization.id) {
+        throw new ConflictException(
+          `Organization with CNPJ ${dto.cnpj} already exists`,
+        );
+      }
+    }
+
+    if (dto.ibgeCode !== undefined) {
+      const conflict = await this.municipalityRepository.findOne({
+        where: { ibgeCode: dto.ibgeCode },
+      });
+      if (conflict && conflict.id !== id) {
+        throw new ConflictException(
+          `Municipality with IBGE code ${dto.ibgeCode} already exists`,
+        );
+      }
+    }
+
     await this.dataSource.transaction(async (manager) => {
-      const addressUpdates: Partial<AddressEntity> = {};
-      if (dto.street !== undefined) addressUpdates.street = dto.street;
-      if (dto.number !== undefined) addressUpdates.number = dto.number;
-      if (dto.neighborhood !== undefined) addressUpdates.neighborhood = dto.neighborhood;
-      if (dto.city !== undefined) addressUpdates.city = dto.city;
-      if (dto.state !== undefined) addressUpdates.state = dto.state;
-      if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
-      if (Object.keys(addressUpdates).length > 0 && municipality.organization.address) {
+      const addressFields = [
+        'street',
+        'number',
+        'neighborhood',
+        'city',
+        'state',
+        'zipCode',
+      ] as const;
+      const hasAddressUpdates = addressFields.some(
+        (f) => dto[f] !== undefined,
+      );
+
+      if (hasAddressUpdates) {
+        if (!municipality.organization.address) {
+          throw new BadRequestException(
+            'Municipality has no address to update',
+          );
+        }
+        const addressUpdates: Partial<AddressEntity> = {};
+        if (dto.street !== undefined) addressUpdates.street = dto.street;
+        if (dto.number !== undefined) addressUpdates.number = dto.number;
+        if (dto.neighborhood !== undefined) addressUpdates.neighborhood = dto.neighborhood;
+        if (dto.city !== undefined) addressUpdates.city = dto.city;
+        if (dto.state !== undefined) addressUpdates.state = dto.state;
+        if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
         await manager.update(
           AddressEntity,
           { id: municipality.organization.address.id },
@@ -184,7 +224,11 @@ export class AdminService {
       if (dto.cnpj !== undefined) orgUpdates.cnpj = dto.cnpj;
       if (dto.isActive !== undefined) orgUpdates.isActive = dto.isActive;
       if (Object.keys(orgUpdates).length > 0) {
-        await manager.update(OrganizationEntity, { id: municipality.organization.id }, orgUpdates);
+        await manager.update(
+          OrganizationEntity,
+          { id: municipality.organization.id },
+          orgUpdates,
+        );
       }
 
       const mUpdates: Partial<MunicipalityEntity> = {};
