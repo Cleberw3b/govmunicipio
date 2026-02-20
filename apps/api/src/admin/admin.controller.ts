@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Param,
   Body,
   UseGuards,
@@ -10,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { CreateMunicipalityDto } from './dto/create-municipality.dto';
+import { UpdateMunicipalityDto } from './dto/update-municipality.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -37,6 +39,14 @@ export class AdminController {
     @Body() dto: CreateMunicipalityDto,
   ): Promise<MunicipalityEntity> {
     return this.adminService.createMunicipalityWithAdmin(dto);
+  }
+
+  @Patch('municipalities/:id')
+  updateMunicipality(
+    @Param('id') id: string,
+    @Body() dto: UpdateMunicipalityDto,
+  ): Promise<MunicipalityEntity> {
+    return this.adminService.updateMunicipality(id, dto);
   }
 
   @Get('users')

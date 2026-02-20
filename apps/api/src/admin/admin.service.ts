@@ -17,6 +17,7 @@ import {
   RoleEntity,
 } from '../entities';
 import { CreateMunicipalityDto } from './dto/create-municipality.dto';
+import { UpdateMunicipalityDto } from './dto/update-municipality.dto';
 
 @Injectable()
 export class AdminService {
@@ -154,5 +155,46 @@ export class AdminService {
 
       return municipality;
     });
+  }
+
+  async updateMunicipality(
+    id: string,
+    dto: UpdateMunicipalityDto,
+  ): Promise<MunicipalityEntity> {
+    const municipality = await this.findMunicipalityById(id);
+
+    await this.dataSource.transaction(async (manager) => {
+      const addressUpdates: Partial<AddressEntity> = {};
+      if (dto.street !== undefined) addressUpdates.street = dto.street;
+      if (dto.number !== undefined) addressUpdates.number = dto.number;
+      if (dto.neighborhood !== undefined) addressUpdates.neighborhood = dto.neighborhood;
+      if (dto.city !== undefined) addressUpdates.city = dto.city;
+      if (dto.state !== undefined) addressUpdates.state = dto.state;
+      if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
+      if (Object.keys(addressUpdates).length > 0 && municipality.organization.address) {
+        await manager.update(
+          AddressEntity,
+          { id: municipality.organization.address.id },
+          addressUpdates,
+        );
+      }
+
+      const orgUpdates: Partial<OrganizationEntity> = {};
+      if (dto.name !== undefined) orgUpdates.name = dto.name;
+      if (dto.cnpj !== undefined) orgUpdates.cnpj = dto.cnpj;
+      if (dto.isActive !== undefined) orgUpdates.isActive = dto.isActive;
+      if (Object.keys(orgUpdates).length > 0) {
+        await manager.update(OrganizationEntity, { id: municipality.organization.id }, orgUpdates);
+      }
+
+      const mUpdates: Partial<MunicipalityEntity> = {};
+      if (dto.ibgeCode !== undefined) mUpdates.ibgeCode = dto.ibgeCode;
+      if (dto.state !== undefined) mUpdates.state = dto.state;
+      if (Object.keys(mUpdates).length > 0) {
+        await manager.update(MunicipalityEntity, { id }, mUpdates);
+      }
+    });
+
+    return this.findMunicipalityById(id);
   }
 }
