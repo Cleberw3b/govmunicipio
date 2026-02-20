@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { PersonModule } from './person/person.module';
 import { OrganizationModule } from './organization/organization.module';
 import { TfdModule } from './tfd/tfd.module';
+import { AdminModule } from './admin/admin.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { TfdModule } from './tfd/tfd.module';
     PersonModule,
     OrganizationModule,
     TfdModule,
+    AdminModule,
   ],
   controllers: [AppController],
 })
