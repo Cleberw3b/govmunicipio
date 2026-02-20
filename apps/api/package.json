@@ -8,7 +8,9 @@
     "start": "nest start",
     "start:prod": "node dist/main",
     "lint": "tsc --noEmit",
-    "clean": "rm -rf dist node_modules"
+    "clean": "rm -rf dist node_modules",
+    "seed": "ts-node --project tsconfig.json src/database/seeds/seed.ts",
+    "typeorm": "ts-node --project tsconfig.json node_modules/typeorm/cli.js"
   },
   "dependencies": {
     "@nestjs/common": "^11",
@@ -36,6 +38,7 @@
     "@types/passport-jwt": "^4",
     "@types/bcrypt": "^5",
     "@types/uuid": "^10",
+    "ts-node": "^10",
     "typescript": "^5"
   }
 }
