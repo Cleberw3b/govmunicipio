@@ -24,7 +24,7 @@
     "pg": "^8",
     "passport": "^0.7",
     "passport-jwt": "^4",
-    "bcrypt": "^5",
+    "bcryptjs": "^2",
     "class-validator": "^0.14",
     "class-transformer": "^0.5",
     "reflect-metadata": "^0.2",
@@ -36,7 +36,7 @@
     "@nestjs/cli": "^11",
     "@types/node": "^22",
     "@types/passport-jwt": "^4",
-    "@types/bcrypt": "^5",
+    "@types/bcryptjs": "^2",
     "@types/uuid": "^10",
     "ts-node": "^10",
     "typescript": "^5"
