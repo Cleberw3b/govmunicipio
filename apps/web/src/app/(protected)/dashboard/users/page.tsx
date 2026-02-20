@@ -22,7 +22,7 @@ interface MunicipalityUser {
   id: string;
   username: string;
   isActive: boolean;
-  person: { firstName: string; lastName: string } | null;
+  person: { firstName: string; lastName: string; identification?: { cpf: string } } | null;
   roles: { name: string }[];
 }
 
@@ -83,7 +83,7 @@ export default function DashboardUsersPage() {
       password: '',
       firstName: u.person?.firstName ?? '',
       lastName: u.person?.lastName ?? '',
-      cpf: '',
+      cpf: u.person?.identification?.cpf ?? '',
       role: u.roles[0]?.name ?? 'operator_tfd',
       isActive: u.isActive,
     });
@@ -103,11 +103,11 @@ export default function DashboardUsersPage() {
           username: form.username,
           firstName: form.firstName,
           lastName: form.lastName,
-          cpf: form.cpf,
           role: form.role,
           isActive: form.isActive,
         };
         if (form.password) body.password = form.password;
+        if (form.cpf) body.cpf = form.cpf;
         await apiClient(`/municipality/users/${editingId}`, {
           method: 'PATCH',
           body: JSON.stringify(body),
