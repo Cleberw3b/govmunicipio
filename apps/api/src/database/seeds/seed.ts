@@ -126,6 +126,26 @@ async function seed(): Promise<void> {
         action: 'update',
         description: 'Atualizar pessoa',
       },
+      {
+        resource: 'municipality',
+        action: 'create',
+        description: 'Criar municipio',
+      },
+      {
+        resource: 'municipality',
+        action: 'read',
+        description: 'Visualizar municipios',
+      },
+      {
+        resource: 'principal',
+        action: 'create',
+        description: 'Criar principal/usuario',
+      },
+      {
+        resource: 'principal',
+        action: 'read',
+        description: 'Visualizar principals/usuarios',
+      },
     ];
     const permissions = await permissionRepo.save(
       permissionRepo.create(permissionsData),
@@ -467,6 +487,37 @@ async function seed(): Promise<void> {
     adminPrincipal.organizations = [municipalityOrg];
     await principalRepo.save(adminPrincipal);
     console.log(`Seeded principal: ${adminPrincipal.username}`);
+
+    // -------------------------------------------------------
+    // 15. Superadmin Principal (platform-level, no organization)
+    // -------------------------------------------------------
+    const superadminPerson = await personRepo.save(
+      personRepo.create({
+        firstName: 'Super',
+        lastName: 'Admin',
+        gender: Gender.NOT_INFORMED,
+      }),
+    );
+    await identificationRepo.save(
+      identificationRepo.create({
+        cpf: '999.999.999-99',
+        dateOfBirth: '1990-01-01' as unknown as Date,
+        person: superadminPerson,
+      }),
+    );
+
+    const superadminPasswordHash = await bcrypt.hash('superadmin123', 10);
+    const superadminPrincipal = principalRepo.create({
+      username: 'superadmin',
+      passwordHash: superadminPasswordHash,
+      isActive: true,
+      person: superadminPerson,
+      organization: null,
+    });
+    superadminPrincipal.roles = [superAdmin];
+    superadminPrincipal.organizations = [];
+    await principalRepo.save(superadminPrincipal);
+    console.log(`Seeded principal: ${superadminPrincipal.username}`);
 
     // -------------------------------------------------------
     // Commit transaction
