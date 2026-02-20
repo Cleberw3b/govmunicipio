@@ -19,6 +19,7 @@ import {
 } from '../entities';
 import { CreateMunicipalityDto } from './dto/create-municipality.dto';
 import { UpdateMunicipalityDto } from './dto/update-municipality.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Injectable()
 export class AdminService {
@@ -156,6 +157,56 @@ export class AdminService {
 
       return municipality;
     });
+  }
+
+  async updateUser(id: string, dto: UpdateUserDto): Promise<PrincipalEntity> {
+    const principal = await this.principalRepository.findOne({
+      where: { id },
+      relations: { person: { identification: true }, roles: true },
+    });
+    if (!principal) throw new NotFoundException(`User ${id} not found`);
+
+    await this.dataSource.transaction(async (manager) => {
+      const personUpdates: Partial<PersonEntity> = {};
+      if (dto.firstName !== undefined) personUpdates.firstName = dto.firstName;
+      if (dto.lastName !== undefined) personUpdates.lastName = dto.lastName;
+      if (Object.keys(personUpdates).length > 0) {
+        await manager.update(PersonEntity, { id: principal.person!.id }, personUpdates);
+      }
+
+      if (dto.cpf !== undefined && principal.person?.identification) {
+        await manager.update(
+          PersonIdentificationEntity,
+          { id: principal.person.identification.id },
+          { cpf: dto.cpf },
+        );
+      }
+
+      const principalUpdates: Partial<PrincipalEntity> = {};
+      if (dto.username !== undefined) principalUpdates.username = dto.username;
+      if (dto.isActive !== undefined) principalUpdates.isActive = dto.isActive;
+      if (dto.password) principalUpdates.passwordHash = await bcrypt.hash(dto.password, 10);
+      if (Object.keys(principalUpdates).length > 0) {
+        await manager.update(PrincipalEntity, { id }, principalUpdates);
+      }
+
+      if (dto.roles !== undefined) {
+        const roleEntities = await this.roleRepository.findBy(
+          dto.roles.map((name) => ({ name })),
+        );
+        const p = await manager.findOne(PrincipalEntity, {
+          where: { id },
+          relations: { roles: true },
+        });
+        p!.roles = roleEntities;
+        await manager.save(p!);
+      }
+    });
+
+    return this.principalRepository.findOne({
+      where: { id },
+      relations: { roles: true, organizations: true, person: true },
+    }) as Promise<PrincipalEntity>;
   }
 
   async updateMunicipality(

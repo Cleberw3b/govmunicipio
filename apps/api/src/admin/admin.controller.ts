@@ -12,6 +12,7 @@ import {
 import { AdminService } from './admin.service';
 import { CreateMunicipalityDto } from './dto/create-municipality.dto';
 import { UpdateMunicipalityDto } from './dto/update-municipality.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -53,5 +54,14 @@ export class AdminController {
   @Get('users')
   findAllUsers(): Promise<PrincipalEntity[]> {
     return this.adminService.findAllUsers();
+  }
+
+  @Patch('users/:id')
+  @HttpCode(HttpStatus.OK)
+  updateUser(
+    @Param('id') id: string,
+    @Body() dto: UpdateUserDto,
+  ): Promise<PrincipalEntity> {
+    return this.adminService.updateUser(id, dto);
   }
 }
