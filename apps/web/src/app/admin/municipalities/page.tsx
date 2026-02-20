@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Plus, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
@@ -57,14 +57,15 @@ export default function MunicipalitiesPage() {
   const [form, setForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
 
-  function load() {
+  const load = useCallback(() => {
+    setLoading(true);
     return apiClient<Municipality[]>('/admin/municipalities')
       .then(setMunicipalities)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   function openEdit(m: Municipality) {
     setEditing(m);
@@ -97,7 +98,6 @@ export default function MunicipalitiesPage() {
       });
       toast.success('Município atualizado!');
       setEditing(null);
-      setLoading(true);
       load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao atualizar');
