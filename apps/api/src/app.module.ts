@@ -7,6 +7,7 @@ import { PersonModule } from './person/person.module';
 import { OrganizationModule } from './organization/organization.module';
 import { TfdModule } from './tfd/tfd.module';
 import { AdminModule } from './admin/admin.module';
+import { MunicipalityModule } from './municipality/municipality.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AdminModule } from './admin/admin.module';
     OrganizationModule,
     TfdModule,
     AdminModule,
+    MunicipalityModule,
   ],
   controllers: [AppController],
 })
