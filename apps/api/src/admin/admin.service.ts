@@ -57,7 +57,7 @@ export class AdminService {
 
   async findAllUsers(): Promise<PrincipalEntity[]> {
     return this.principalRepository.find({
-      relations: { roles: true, organizations: true, person: true },
+      relations: { roles: true, organizations: true, person: { identification: true } },
       order: { createdAt: 'DESC' },
     });
   }
