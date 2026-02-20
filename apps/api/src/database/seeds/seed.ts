@@ -20,17 +20,30 @@ import {
   PrincipalEntity,
 } from '../../entities';
 
-const AppDataSource = new DataSource({
-  type: 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 5432,
-  username: process.env.DB_USERNAME || 'postgres',
-  password: process.env.DB_PASSWORD || 'postgres',
-  database: process.env.DB_NAME || 'govmunicipio',
-  entities: [__dirname + '/../../entities/*.entity{.ts,.js}'],
-  synchronize: false,
-  logging: true,
-});
+const databaseUrl = process.env.DATABASE_URL;
+
+const AppDataSource = new DataSource(
+  databaseUrl
+    ? {
+        type: 'postgres',
+        url: databaseUrl,
+        ssl: { rejectUnauthorized: false },
+        entities: [__dirname + '/../../entities/*.entity{.ts,.js}'],
+        synchronize: true,
+        logging: false,
+      }
+    : {
+        type: 'postgres',
+        host: process.env.DB_HOST || 'localhost',
+        port: Number(process.env.DB_PORT) || 5432,
+        username: process.env.DB_USERNAME || 'postgres',
+        password: process.env.DB_PASSWORD || 'postgres',
+        database: process.env.DB_NAME || 'govmunicipio',
+        entities: [__dirname + '/../../entities/*.entity{.ts,.js}'],
+        synchronize: true,
+        logging: false,
+      },
+);
 
 async function seed(): Promise<void> {
   await AppDataSource.initialize();
