@@ -3,6 +3,9 @@ import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
+import { PersonModule } from './person/person.module';
+import { OrganizationModule } from './organization/organization.module';
+import { TfdModule } from './tfd/tfd.module';
 
 @Module({
   imports: [
@@ -12,6 +15,9 @@ import { AuthModule } from './auth/auth.module';
     }),
     DatabaseModule,
     AuthModule,
+    PersonModule,
+    OrganizationModule,
+    TfdModule,
   ],
   controllers: [AppController],
 })
