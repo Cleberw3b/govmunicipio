@@ -45,13 +45,6 @@ export class MunicipalityService {
     dto: CreateMunicipalityUserDto,
     organizationId: string,
   ): Promise<PrincipalEntity> {
-    const existing = await this.principalRepository.findOne({
-      where: { username: dto.username },
-    });
-    if (existing) {
-      throw new ConflictException(`Username ${dto.username} already exists`);
-    }
-
     const organization = await this.dataSource
       .getRepository(OrganizationEntity)
       .findOne({ where: { id: organizationId } });
@@ -64,34 +57,56 @@ export class MunicipalityService {
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    return this.dataSource.transaction(async (manager) => {
-      const person = await manager.save(
-        manager.create(PersonEntity, {
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          gender: Gender.NOT_INFORMED,
-        }),
-      );
+    return this.dataSource
+      .transaction(async (manager) => {
+        // C1: Username uniqueness check inside the transaction to prevent race conditions
+        const existing = await manager.findOne(PrincipalEntity, {
+          where: { username: dto.username },
+        });
+        if (existing) {
+          throw new ConflictException(`Username ${dto.username} already exists`);
+        }
 
-      await manager.save(
-        manager.create(PersonIdentificationEntity, {
-          cpf: dto.cpf,
-          dateOfBirth: '1990-01-01' as unknown as Date,
+        const person = await manager.save(
+          manager.create(PersonEntity, {
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+            gender: Gender.NOT_INFORMED,
+          }),
+        );
+
+        await manager.save(
+          manager.create(PersonIdentificationEntity, {
+            cpf: dto.cpf,
+            dateOfBirth: new Date('1990-01-01'),
+            person,
+          }),
+        );
+
+        // I3: Omit the OneToOne `organization` field; use only the ManyToMany `organizations`
+        const principal = manager.create(PrincipalEntity, {
+          username: dto.username,
+          passwordHash,
+          isActive: true,
           person,
-        }),
-      );
-
-      const principal = manager.create(PrincipalEntity, {
-        username: dto.username,
-        passwordHash,
-        isActive: true,
-        person,
-        organization,
+        });
+        principal.roles = [role];
+        principal.organizations = [organization];
+        return manager.save(principal);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ConflictException) throw err;
+        if (err instanceof NotFoundException) throw err;
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        ) {
+          throw new ConflictException(`Username ${dto.username} already exists`);
+        }
+        throw err;
       });
-      principal.roles = [role];
-      principal.organizations = [organization];
-      return manager.save(principal);
-    });
   }
 
   async updateUser(
@@ -128,15 +143,28 @@ export class MunicipalityService {
         await manager.update(PersonEntity, { id: person.id }, personUpdates);
       }
 
+      // I2: Wrap CPF update in try-catch to surface uniqueness violations as ConflictException
       if (dto.cpf !== undefined) {
         if (!person.identification) {
           throw new BadRequestException(`User ${id} has no identification record`);
         }
-        await manager.update(
-          PersonIdentificationEntity,
-          { id: person.identification.id },
-          { cpf: dto.cpf },
-        );
+        try {
+          await manager.update(
+            PersonIdentificationEntity,
+            { id: person.identification.id },
+            { cpf: dto.cpf },
+          );
+        } catch (err: unknown) {
+          if (
+            typeof err === 'object' &&
+            err !== null &&
+            'code' in err &&
+            (err as { code: string }).code === '23505'
+          ) {
+            throw new ConflictException(`CPF ${dto.cpf} is already in use`);
+          }
+          throw err;
+        }
       }
 
       const principalUpdates: Partial<PrincipalEntity> = {};
@@ -160,13 +188,17 @@ export class MunicipalityService {
       }
     });
 
-    return this.principalRepository
+    // C2: Await the re-fetch and explicitly check for null instead of casting
+    const updated = await this.principalRepository
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.roles', 'role')
       .leftJoinAndSelect('p.person', 'person')
       .leftJoinAndSelect('person.identification', 'identification')
       .leftJoinAndSelect('p.organizations', 'org')
       .where('p.id = :id', { id })
-      .getOne() as Promise<PrincipalEntity>;
+      .getOne();
+
+    if (!updated) throw new NotFoundException(`User ${id} not found after update`);
+    return updated;
   }
 }
