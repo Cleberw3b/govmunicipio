@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -20,14 +21,19 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { isAuthenticated, getCurrentPrincipal, logout } from '@/lib/auth';
-
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'TFD > Solicitações', href: '/tfd/requests', icon: FileText },
-];
+import { isAdminMunicipality } from '@/lib/admin-auth';
 
 function SidebarContent({ pathname }: { pathname: string }) {
   const principal = getCurrentPrincipal();
+  const adminMunicipality = isAdminMunicipality();
+
+  const navigation = [
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'TFD > Solicitações', href: '/tfd/requests', icon: FileText },
+    ...(adminMunicipality
+      ? [{ name: 'Usuários', href: '/dashboard/users', icon: Users }]
+      : []),
+  ];
 
   return (
     <div className="flex h-full flex-col">
