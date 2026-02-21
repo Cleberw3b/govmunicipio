@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Pencil } from 'lucide-react';
+import { Check, ChevronsUpDown, Pencil } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -13,6 +13,13 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from '@/components/ui/command';
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
 
 interface Principal {
@@ -21,7 +28,17 @@ interface Principal {
   isActive: boolean;
   person: { firstName: string; lastName: string; identification?: { cpf: string } } | null;
   roles: { name: string }[];
-  organizations: { name: string }[];
+  organizations: { id: string; name: string }[];
+}
+
+interface MunicipalityResponse {
+  id: string;
+  state: string;
+  organization: {
+    id: string;
+    name: string;
+    address: { city: string; state: string } | null;
+  };
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -41,6 +58,7 @@ interface EditForm {
   cpf: string;
   isActive: boolean;
   roles: string[];
+  organizationId: string | null;
 }
 
 export default function UsersPage() {
@@ -49,6 +67,8 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<Principal | null>(null);
   const [form, setForm] = useState<EditForm | null>(null);
   const [saving, setSaving] = useState(false);
+  const [municipalities, setMunicipalities] = useState<{ orgId: string; label: string }[]>([]);
+  const [comboOpen, setComboOpen] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -70,7 +90,20 @@ export default function UsersPage() {
       cpf: u.person?.identification?.cpf ?? '',
       isActive: u.isActive,
       roles: u.roles.map((r) => r.name),
+      organizationId: u.organizations[0]?.id ?? null,
     });
+    if (municipalities.length === 0) {
+      apiClient<MunicipalityResponse[]>('/admin/municipalities')
+        .then((data) =>
+          setMunicipalities(
+            data.map((m) => ({
+              orgId: m.organization.id,
+              label: `${m.organization.name} — ${m.organization.address?.city ?? ''}/${m.state}`,
+            })),
+          ),
+        )
+        .catch(console.error);
+    }
   }
 
   function updateField(field: keyof EditForm) {
@@ -101,6 +134,10 @@ export default function UsersPage() {
         roles: form.roles,
       };
       if (form.password) body.password = form.password;
+      const originalOrgId = editing.organizations[0]?.id ?? null;
+      if (form.organizationId !== originalOrgId) {
+        body.organizationId = form.organizationId;
+      }
       await apiClient(`/admin/users/${editing.id}`, {
         method: 'PATCH',
         body: JSON.stringify(body),
@@ -221,6 +258,61 @@ export default function UsersPage() {
                     </label>
                   ))}
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Organização</Label>
+                <Popover open={comboOpen} onOpenChange={setComboOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={comboOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      {form.organizationId
+                        ? municipalities.find((m) => m.orgId === form.organizationId)?.label ?? 'Carregando...'
+                        : 'Sem organização'}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                    <Command>
+                      <CommandInput placeholder="Buscar município..." />
+                      <CommandList>
+                        <CommandEmpty>Nenhum município encontrado.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="__none__"
+                            onSelect={() => {
+                              setForm((prev) => prev ? { ...prev, organizationId: null } : prev);
+                              setComboOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn('mr-2 h-4 w-4', form.organizationId === null ? 'opacity-100' : 'opacity-0')}
+                            />
+                            Sem organização
+                          </CommandItem>
+                          {municipalities.map((m) => (
+                            <CommandItem
+                              key={m.orgId}
+                              value={m.label}
+                              onSelect={() => {
+                                setForm((prev) => prev ? { ...prev, organizationId: m.orgId } : prev);
+                                setComboOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn('mr-2 h-4 w-4', form.organizationId === m.orgId ? 'opacity-100' : 'opacity-0')}
+                              />
+                              {m.label}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="flex items-center gap-2">
                 <input
