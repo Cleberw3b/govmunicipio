@@ -3,6 +3,8 @@ import {
   IsOptional,
   IsBoolean,
   IsArray,
+  IsUUID,
+  ValidateIf,
   MinLength,
 } from 'class-validator';
 
@@ -14,4 +16,9 @@ export class UpdateUserDto {
   @IsOptional() @IsString() cpf?: string;
   @IsOptional() @IsBoolean() isActive?: boolean;
   @IsOptional() @IsArray() @IsString({ each: true }) roles?: string[];
+
+  @IsOptional()
+  @ValidateIf((o) => o.organizationId !== null)
+  @IsUUID()
+  organizationId?: string | null;
 }
