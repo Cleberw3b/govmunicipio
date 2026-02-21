@@ -215,6 +215,31 @@ export class AdminService {
         p!.roles = roleEntities;
         await manager.save(p!);
       }
+
+      if (dto.organizationId !== undefined) {
+        const p = await manager.findOne(PrincipalEntity, {
+          where: { id },
+          relations: { organizations: true },
+        });
+        if (!p) throw new NotFoundException(`User ${id} not found`);
+
+        if (dto.organizationId === null) {
+          p.organization = null;
+          p.organizations = [];
+        } else {
+          const org = await manager.findOne(OrganizationEntity, {
+            where: { id: dto.organizationId },
+          });
+          if (!org) {
+            throw new NotFoundException(
+              `Organization ${dto.organizationId} not found`,
+            );
+          }
+          p.organization = org;
+          p.organizations = [org];
+        }
+        await manager.save(p);
+      }
     });
 
     return this.principalRepository.findOne({
