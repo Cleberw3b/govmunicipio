@@ -16,6 +16,8 @@ import { ConfigService } from '@nestjs/config';
             url: databaseUrl,
             ssl: isProduction ? { rejectUnauthorized: false } : false,
             entities: [__dirname + '/../entities/*.entity{.ts,.js}'],
+            migrations: [__dirname + '/migrations/*{.ts,.js}'],
+            migrationsRun: isProduction,
             synchronize: !isProduction,
             logging: !isProduction,
           };
@@ -29,8 +31,10 @@ import { ConfigService } from '@nestjs/config';
           password: config.get('DB_PASSWORD', 'postgres'),
           database: config.get('DB_NAME', 'govmunicipio'),
           entities: [__dirname + '/../entities/*.entity{.ts,.js}'],
-          synchronize: !isProduction,
-          logging: !isProduction,
+          migrations: [__dirname + '/migrations/*{.ts,.js}'],
+          migrationsRun: false,
+          synchronize: true,
+          logging: true,
         };
       },
     }),

@@ -10,7 +10,10 @@
     "lint": "tsc --noEmit",
     "clean": "rm -rf dist node_modules",
     "seed": "ts-node --project tsconfig.json src/database/seeds/seed.ts",
-    "typeorm": "ts-node --project tsconfig.json node_modules/typeorm/cli.js"
+    "typeorm": "ts-node --project tsconfig.json node_modules/typeorm/cli.js",
+    "migration:generate": "npx dotenv-cli -e .env -- ts-node --project tsconfig.json node_modules/typeorm/cli.js migration:generate -d src/database/data-source.ts",
+    "migration:run": "npx dotenv-cli -e .env -- ts-node --project tsconfig.json node_modules/typeorm/cli.js migration:run -d src/database/data-source.ts",
+    "migration:revert": "npx dotenv-cli -e .env -- ts-node --project tsconfig.json node_modules/typeorm/cli.js migration:revert -d src/database/data-source.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11",
