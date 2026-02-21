@@ -219,7 +219,7 @@ export class AdminService {
       if (dto.organizationId !== undefined) {
         const p = await manager.findOne(PrincipalEntity, {
           where: { id },
-          relations: { organizations: true },
+          relations: { organizations: true, organization: true },
         });
         if (!p) throw new NotFoundException(`User ${id} not found`);
 
