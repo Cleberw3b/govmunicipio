@@ -144,6 +144,7 @@ export default function UsersPage() {
       });
       toast.success('Usuário atualizado!');
       setEditing(null);
+      setComboOpen(false);
       load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao atualizar');
@@ -214,7 +215,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
+      <Dialog open={!!editing} onOpenChange={(open) => { if (!open) { setEditing(null); setComboOpen(false); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar Usuário</DialogTitle>
@@ -327,7 +328,7 @@ export default function UsersPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setEditing(null); setComboOpen(false); }}>Cancelar</Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? 'Salvando...' : 'Salvar'}
             </Button>
