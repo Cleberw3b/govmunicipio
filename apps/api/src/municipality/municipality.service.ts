@@ -10,6 +10,7 @@ import { Repository, DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { Gender } from '@govmunicipio/shared';
 import {
+  AddressEntity,
   PrincipalEntity,
   PersonEntity,
   PersonIdentificationEntity,
@@ -18,6 +19,7 @@ import {
 } from '../entities';
 import { CreateMunicipalityUserDto } from './dto/create-municipality-user.dto';
 import { UpdateMunicipalityUserDto } from './dto/update-municipality-user.dto';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
 
 @Injectable()
 export class MunicipalityService {
@@ -200,5 +202,65 @@ export class MunicipalityService {
 
     if (!updated) throw new NotFoundException(`User ${id} not found after update`);
     return updated;
+  }
+
+  async findOrganizations(): Promise<OrganizationEntity[]> {
+    return this.dataSource
+      .getRepository(OrganizationEntity)
+      .createQueryBuilder('org')
+      .leftJoin('municipality', 'mun', 'mun.organization_id = org.id')
+      .leftJoinAndSelect('org.address', 'address')
+      .where('mun.id IS NULL')
+      .orderBy('org.name', 'ASC')
+      .getMany();
+  }
+
+  async createOrganization(dto: CreateOrganizationDto): Promise<OrganizationEntity> {
+    const existing = await this.dataSource
+      .getRepository(OrganizationEntity)
+      .findOne({ where: { cnpj: dto.cnpj } });
+    if (existing) {
+      throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+    }
+
+    const hasAddress = dto.city || dto.state || dto.street || dto.number || dto.neighborhood || dto.zipCode;
+
+    return this.dataSource
+      .transaction(async (manager) => {
+        let address: AddressEntity | undefined;
+        if (hasAddress) {
+          address = await manager.save(
+            manager.create(AddressEntity, {
+              city: dto.city ?? '',
+              state: dto.state ?? '',
+              street: dto.street,
+              number: dto.number,
+              neighborhood: dto.neighborhood,
+              zipCode: dto.zipCode,
+            }),
+          );
+        }
+
+        return manager.save(
+          manager.create(OrganizationEntity, {
+            name: dto.name,
+            cnpj: dto.cnpj,
+            isActive: true,
+            ...(address ? { address } : {}),
+          }),
+        );
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ConflictException) throw err;
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        ) {
+          throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+        }
+        throw err;
+      });
   }
 }

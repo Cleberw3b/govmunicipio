@@ -12,6 +12,7 @@ import {
 import { MunicipalityService } from './municipality.service';
 import { CreateMunicipalityUserDto } from './dto/create-municipality-user.dto';
 import { UpdateMunicipalityUserDto } from './dto/update-municipality-user.dto';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -19,7 +20,7 @@ import {
   CurrentPrincipal,
   CurrentPrincipalData,
 } from '../auth/decorators/current-principal.decorator';
-import { PrincipalEntity } from '../entities';
+import { OrganizationEntity, PrincipalEntity } from '../entities';
 
 @Controller('municipality')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -49,5 +50,18 @@ export class MunicipalityController {
     @CurrentPrincipal() p: CurrentPrincipalData,
   ): Promise<PrincipalEntity> {
     return this.municipalityService.updateUser(id, dto, p.organizationId);
+  }
+
+  @Get('organizations')
+  findOrganizations(): Promise<OrganizationEntity[]> {
+    return this.municipalityService.findOrganizations();
+  }
+
+  @Post('organizations')
+  @HttpCode(HttpStatus.CREATED)
+  createOrganization(
+    @Body() dto: CreateOrganizationDto,
+  ): Promise<OrganizationEntity> {
+    return this.municipalityService.createOrganization(dto);
   }
 }

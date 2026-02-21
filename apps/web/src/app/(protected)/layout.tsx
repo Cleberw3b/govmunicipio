@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
+  Building,
   Building2,
   FileText,
   LayoutDashboard,
@@ -21,7 +22,7 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { isAuthenticated, getCurrentPrincipal, logout } from '@/lib/auth';
-import { isAdminMunicipality } from '@/lib/admin-auth';
+import { isAdminMunicipality, isSuperAdmin } from '@/lib/admin-auth';
 
 function SidebarContent({ pathname }: { pathname: string }) {
   const principal = getCurrentPrincipal();
@@ -31,7 +32,10 @@ function SidebarContent({ pathname }: { pathname: string }) {
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { name: 'TFD > Solicitações', href: '/tfd/requests', icon: FileText },
     ...(adminMunicipality
-      ? [{ name: 'Usuários', href: '/dashboard/users', icon: Users }]
+      ? [
+          { name: 'Organizações', href: '/dashboard/organizations', icon: Building },
+          { name: 'Usuários', href: '/dashboard/users', icon: Users },
+        ]
       : []),
   ];
 
@@ -101,6 +105,10 @@ export default function ProtectedLayout({
   useEffect(() => {
     if (!isAuthenticated()) {
       router.push('/auth/login');
+      return;
+    }
+    if (isSuperAdmin()) {
+      router.push('/admin');
       return;
     }
     setMounted(true);
