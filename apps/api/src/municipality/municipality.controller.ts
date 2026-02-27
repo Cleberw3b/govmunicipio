@@ -40,7 +40,7 @@ export class MunicipalityController {
   createUser(
     @Body() dto: CreateMunicipalityUserDto,
     @CurrentPrincipal() p: CurrentPrincipalData,
-  ): Promise<PrincipalEntity> {
+  ): Promise<{ user: PrincipalEntity; otpCode: string }> {
     return this.municipalityService.createUser(dto, p.organizationId);
   }
 

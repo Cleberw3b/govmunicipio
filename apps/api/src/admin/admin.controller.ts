@@ -51,7 +51,7 @@ export class AdminController {
   @HttpCode(HttpStatus.CREATED)
   createMunicipality(
     @Body() dto: CreateMunicipalityDto,
-  ): Promise<MunicipalityEntity> {
+  ): Promise<{ municipality: MunicipalityEntity; otpCode: string }> {
     return this.adminService.createMunicipalityWithAdmin(dto);
   }
 
@@ -133,7 +133,9 @@ export class AdminController {
 
   @Post('users')
   @HttpCode(HttpStatus.CREATED)
-  createUser(@Body() dto: CreateUserDto): Promise<PrincipalEntity> {
+  createUser(
+    @Body() dto: CreateUserDto,
+  ): Promise<{ user: PrincipalEntity; otpCode: string }> {
     return this.adminService.createUser(dto);
   }
 

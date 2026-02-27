@@ -4,7 +4,7 @@ import {
   IsArray,
   IsUUID,
   IsNotEmpty,
-  MinLength,
+  IsEmail,
   Matches,
   ValidateIf,
 } from 'class-validator';
@@ -14,9 +14,13 @@ export class CreateUserDto {
   @IsNotEmpty()
   username!: string;
 
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
   @IsString()
-  @MinLength(8)
-  password!: string;
+  phone?: string;
 
   @IsOptional()
   @IsString()

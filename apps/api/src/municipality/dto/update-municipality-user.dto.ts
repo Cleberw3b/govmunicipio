@@ -1,8 +1,7 @@
-import { IsString, IsOptional, IsBoolean, IsIn, MinLength, Matches, ValidateIf } from 'class-validator';
+import { IsString, IsOptional, IsBoolean, IsIn, Matches, ValidateIf } from 'class-validator';
 
 export class UpdateMunicipalityUserDto {
   @IsOptional() @IsString() username?: string;
-  @IsOptional() @IsString() @MinLength(8) password?: string;
   @IsOptional() @IsString() firstName?: string;
   @IsOptional() @IsString() lastName?: string;
   @IsOptional()

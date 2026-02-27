@@ -14,6 +14,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { apiClient } from '@/lib/api';
 
 interface MunicipalityData {
@@ -30,7 +37,6 @@ interface MunicipalityData {
 
 interface AdminData {
   username: string;
-  password: string;
   firstName: string;
   lastName: string;
   cpf: string;
@@ -50,7 +56,6 @@ const emptyMunicipality: MunicipalityData = {
 
 const emptyAdmin: AdminData = {
   username: '',
-  password: '',
   firstName: '',
   lastName: '',
   cpf: '',
@@ -62,6 +67,7 @@ export default function NewMunicipalityPage() {
   const [mData, setMData] = useState<MunicipalityData>(emptyMunicipality);
   const [aData, setAData] = useState<AdminData>(emptyAdmin);
   const [loading, setLoading] = useState(false);
+  const [createdOtp, setCreatedOtp] = useState<{ username: string; code: string } | null>(null);
 
   function updateM(field: keyof MunicipalityData) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -76,12 +82,11 @@ export default function NewMunicipalityPage() {
   async function handleSubmit() {
     setLoading(true);
     try {
-      await apiClient('/admin/municipalities', {
+      const result = await apiClient<{ municipality: unknown; otpCode: string }>('/admin/municipalities', {
         method: 'POST',
         body: JSON.stringify({ municipality: mData, admin: aData }),
       });
-      toast.success('Município criado com sucesso!');
-      router.push('/admin/municipalities');
+      setCreatedOtp({ username: aData.username, code: result.otpCode });
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : 'Erro ao criar município',
@@ -269,15 +274,9 @@ export default function NewMunicipalityPage() {
                 placeholder="admin_cidade"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Senha (mínimo 8 caracteres)</Label>
-              <Input
-                id="password"
-                type="password"
-                value={aData.password}
-                onChange={updateA('password')}
-              />
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Um código OTP será gerado para o administrador definir a senha no primeiro acesso.
+            </p>
             <div className="flex justify-between pt-2">
               <Button variant="outline" onClick={() => setStep(1)}>
                 <ChevronLeft className="mr-2 h-4 w-4" /> Voltar
@@ -289,6 +288,26 @@ export default function NewMunicipalityPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={!!createdOtp} onOpenChange={(open) => { if (!open) router.push('/admin/municipalities'); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Município criado!</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              Compartilhe o código OTP com o administrador <strong>{createdOtp?.username}</strong>. Ele deve acessar <strong>/auth/set-password</strong> para definir a senha.
+            </p>
+            <div className="flex items-center justify-center rounded-lg bg-muted py-4">
+              <span className="font-mono text-3xl font-bold tracking-widest">{createdOtp?.code}</span>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">O código expira em 15 minutos.</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => router.push('/admin/municipalities')}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

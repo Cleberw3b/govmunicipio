@@ -16,3 +16,4 @@ export { StatusEntity } from './status.entity';
 export { ModuleEntity } from './module.entity';
 export { ModuleStatusEntity } from './module-status.entity';
 export { TfdRequestEntity } from './tfd-request.entity';
+export { OtpTokenEntity } from './otp-token.entity';

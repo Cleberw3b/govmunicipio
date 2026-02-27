@@ -8,6 +8,8 @@ import {
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
+import { OtpService } from '../auth/otp.service';
 import { Gender } from '@govmunicipio/shared';
 import {
   AddressEntity,
@@ -33,6 +35,7 @@ export class MunicipalityService {
     private readonly principalRepository: Repository<PrincipalEntity>,
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
+    private readonly otpService: OtpService,
   ) {}
 
   async findUsers(organizationId: string): Promise<PrincipalEntity[]> {
@@ -50,7 +53,7 @@ export class MunicipalityService {
   async createUser(
     dto: CreateMunicipalityUserDto,
     organizationId: string,
-  ): Promise<PrincipalEntity> {
+  ): Promise<{ user: PrincipalEntity; otpCode: string }> {
     const organization = await this.dataSource
       .getRepository(OrganizationEntity)
       .findOne({ where: { id: organizationId } });
@@ -61,11 +64,11 @@ export class MunicipalityService {
     const role = await this.roleRepository.findOne({ where: { name: dto.role } });
     if (!role) throw new NotFoundException(`Role ${dto.role} not found`);
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const tempPassword = crypto.randomBytes(32).toString('hex');
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-    return this.dataSource
+    const user = await this.dataSource
       .transaction(async (manager) => {
-        // C1: Username uniqueness check inside the transaction to prevent race conditions
         const existing = await manager.findOne(PrincipalEntity, {
           where: { username: dto.username },
         });
@@ -89,11 +92,12 @@ export class MunicipalityService {
           }),
         );
 
-        // I3: Omit the OneToOne `organization` field; use only the ManyToMany `organizations`
         const principal = manager.create(PrincipalEntity, {
           username: dto.username,
           passwordHash,
           isActive: true,
+          email: dto.email ?? null,
+          phone: dto.phone ?? null,
           person,
         });
         principal.roles = [role];
@@ -113,6 +117,9 @@ export class MunicipalityService {
         }
         throw err;
       });
+
+    const otpCode = await this.otpService.requestOtp(dto.username);
+    return { user, otpCode };
   }
 
   async updateUser(
@@ -176,7 +183,6 @@ export class MunicipalityService {
       const principalUpdates: Partial<PrincipalEntity> = {};
       if (dto.username !== undefined) principalUpdates.username = dto.username;
       if (dto.isActive !== undefined) principalUpdates.isActive = dto.isActive;
-      if (dto.password) principalUpdates.passwordHash = await bcrypt.hash(dto.password, 10);
       if (Object.keys(principalUpdates).length > 0) {
         await manager.update(PrincipalEntity, { id }, principalUpdates);
       }

@@ -52,7 +52,6 @@ const ALL_ROLES = ['super_admin', 'admin_municipality', 'operator_tfd', 'viewer'
 
 interface EditForm {
   username: string;
-  password: string;
   firstName: string;
   lastName: string;
   cpf: string;
@@ -63,7 +62,8 @@ interface EditForm {
 
 interface CreateForm {
   username: string;
-  password: string;
+  email: string;
+  phone: string;
   firstName: string;
   lastName: string;
   cpf: string;
@@ -73,7 +73,8 @@ interface CreateForm {
 
 const EMPTY_CREATE: CreateForm = {
   username: '',
-  password: '',
+  email: '',
+  phone: '',
   firstName: '',
   lastName: '',
   cpf: '',
@@ -92,6 +93,8 @@ export default function UsersPage() {
   const [municipalities, setMunicipalities] = useState<{ orgId: string; label: string }[]>([]);
   const [editComboOpen, setEditComboOpen] = useState(false);
   const [createComboOpen, setCreateComboOpen] = useState(false);
+  const [createdOtp, setCreatedOtp] = useState<{ username: string; code: string } | null>(null);
+  const [sendingOtp, setSendingOtp] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -128,7 +131,6 @@ export default function UsersPage() {
     setEditing(u);
     setForm({
       username: u.username,
-      password: '',
       firstName: u.person?.firstName ?? '',
       lastName: u.person?.lastName ?? '',
       cpf: u.person?.identification?.cpf ?? '',
@@ -176,9 +178,10 @@ export default function UsersPage() {
     try {
       const body: Record<string, unknown> = {
         username: createForm.username,
-        password: createForm.password,
         roles: createForm.roles,
       };
+      if (createForm.email) body.email = createForm.email;
+      if (createForm.phone) body.phone = createForm.phone;
       if (!isSuperAdminCreate) {
         body.firstName = createForm.firstName;
         body.lastName = createForm.lastName;
@@ -186,18 +189,34 @@ export default function UsersPage() {
       }
       if (createForm.organizationId) body.organizationId = createForm.organizationId;
 
-      await apiClient('/admin/users', {
+      const result = await apiClient<{ user: Principal; otpCode: string }>('/admin/users', {
         method: 'POST',
         body: JSON.stringify(body),
       });
-      toast.success('Usuário criado!');
       setCreating(false);
       setCreateComboOpen(false);
+      setCreatedOtp({ username: createForm.username, code: result.otpCode });
       load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao criar');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSendOtp(username: string) {
+    setSendingOtp(true);
+    try {
+      const result = await apiClient<{ code: string }>('/auth/otp/request', {
+        method: 'POST',
+        body: JSON.stringify({ username }),
+      });
+      toast.success(`OTP gerado: ${result.code}`);
+      setCreatedOtp({ username, code: result.code });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao gerar OTP');
+    } finally {
+      setSendingOtp(false);
     }
   }
 
@@ -213,7 +232,6 @@ export default function UsersPage() {
         isActive: form.isActive,
         roles: form.roles,
       };
-      if (form.password) body.password = form.password;
       const originalOrgId = editing.organizations[0]?.id ?? null;
       if (form.organizationId !== originalOrgId) {
         body.organizationId = form.organizationId;
@@ -348,9 +366,15 @@ export default function UsersPage() {
               <Label>Nome de Usuário *</Label>
               <Input value={createForm.username} onChange={updateCreateField('username')} />
             </div>
-            <div className="space-y-2">
-              <Label>Senha *</Label>
-              <Input type="password" value={createForm.password} onChange={updateCreateField('password')} />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>E-mail</Label>
+                <Input type="email" value={createForm.email} onChange={updateCreateField('email')} placeholder="usuario@exemplo.com" />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefone</Label>
+                <Input type="tel" value={createForm.phone} onChange={updateCreateField('phone')} placeholder="(11) 99999-9999" />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -414,6 +438,27 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* OTP result dialog */}
+      <Dialog open={!!createdOtp} onOpenChange={(open) => { if (!open) setCreatedOtp(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Código OTP Gerado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-sm text-muted-foreground">
+              Compartilhe o código abaixo com o usuário <strong>{createdOtp?.username}</strong>. Ele deve acessar <strong>/auth/set-password</strong> para definir sua senha.
+            </p>
+            <div className="flex items-center justify-center rounded-lg bg-muted py-4">
+              <span className="font-mono text-3xl font-bold tracking-widest">{createdOtp?.code}</span>
+            </div>
+            <p className="text-xs text-muted-foreground text-center">O código expira em 15 minutos.</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setCreatedOtp(null)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit dialog */}
       <Dialog open={!!editing} onOpenChange={(open) => { if (!open) { setEditing(null); setEditComboOpen(false); } }}>
         <DialogContent className="max-w-lg">
@@ -441,8 +486,16 @@ export default function UsersPage() {
                 <Input value={form.username} onChange={updateEditField('username')} />
               </div>
               <div className="space-y-2">
-                <Label>Nova Senha (deixe em branco para manter)</Label>
-                <Input type="password" value={form.password} onChange={updateEditField('password')} />
+                <Label>Senha</Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  disabled={sendingOtp}
+                  onClick={() => editing && handleSendOtp(editing.username)}
+                >
+                  {sendingOtp ? 'Gerando OTP...' : 'Enviar OTP para redefinir senha'}
+                </Button>
               </div>
               <div className="space-y-2">
                 <Label>Roles</Label>

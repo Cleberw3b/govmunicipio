@@ -7,6 +7,8 @@ import {
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
+import { OtpService } from '../auth/otp.service';
 import { Gender } from '@govmunicipio/shared';
 import {
   AddressEntity,
@@ -44,6 +46,8 @@ export class AdminService {
 
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
+
+    private readonly otpService: OtpService,
   ) {}
 
   async findAllMunicipalities(): Promise<MunicipalityEntity[]> {
@@ -73,7 +77,7 @@ export class AdminService {
 
   async createMunicipalityWithAdmin(
     dto: CreateMunicipalityDto,
-  ): Promise<MunicipalityEntity> {
+  ): Promise<{ municipality: MunicipalityEntity; otpCode: string }> {
     // Check for conflicts before starting transaction
     const existingOrg = await this.dataSource
       .getRepository(OrganizationEntity)
@@ -100,9 +104,10 @@ export class AdminService {
       throw new NotFoundException('Role admin_municipality not found in DB');
     }
 
-    const passwordHash = await bcrypt.hash(dto.admin.password, 10);
+    const tempPassword = crypto.randomBytes(32).toString('hex');
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-    return this.dataSource.transaction(async (manager) => {
+    const municipality = await this.dataSource.transaction(async (manager) => {
       // 1. Address
       const address = await manager.save(
         manager.create(AddressEntity, {
@@ -126,7 +131,7 @@ export class AdminService {
       );
 
       // 3. Municipality
-      const municipality = await manager.save(
+      const mun = await manager.save(
         manager.create(MunicipalityEntity, {
           ibgeCode: dto.municipality.ibgeCode,
           state: dto.municipality.state,
@@ -164,11 +169,14 @@ export class AdminService {
       principal.organizations = [organization];
       await manager.save(principal);
 
-      return municipality;
+      return mun;
     });
+
+    const otpCode = await this.otpService.requestOtp(dto.admin.username);
+    return { municipality, otpCode };
   }
 
-  async createUser(dto: CreateUserDto): Promise<PrincipalEntity> {
+  async createUser(dto: CreateUserDto): Promise<{ user: PrincipalEntity; otpCode: string }> {
     const isSuperAdmin = dto.roles.includes('super_admin');
 
     if (!isSuperAdmin && (!dto.firstName || !dto.lastName || !dto.cpf)) {
@@ -196,9 +204,10 @@ export class AdminService {
       orgEntity = org;
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const tempPassword = crypto.randomBytes(32).toString('hex');
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
 
-    return this.dataSource
+    const user = await this.dataSource
       .transaction(async (manager) => {
         let person: PersonEntity | undefined;
         if (!isSuperAdmin) {
@@ -222,6 +231,8 @@ export class AdminService {
           username: dto.username,
           passwordHash,
           isActive: true,
+          email: dto.email ?? null,
+          phone: dto.phone ?? null,
           ...(person ? { person, organization: orgEntity } : {}),
         });
         principal.roles = roleEntities;
@@ -242,6 +253,9 @@ export class AdminService {
         }
         throw err;
       });
+
+    const otpCode = await this.otpService.requestOtp(dto.username);
+    return { user, otpCode };
   }
 
   async findAllOrganizations(): Promise<OrganizationEntity[]> {
@@ -395,7 +409,6 @@ export class AdminService {
       const principalUpdates: Partial<PrincipalEntity> = {};
       if (dto.username !== undefined) principalUpdates.username = dto.username;
       if (dto.isActive !== undefined) principalUpdates.isActive = dto.isActive;
-      if (dto.password) principalUpdates.passwordHash = await bcrypt.hash(dto.password, 10);
       if (Object.keys(principalUpdates).length > 0) {
         await manager.update(PrincipalEntity, { id }, principalUpdates);
       }

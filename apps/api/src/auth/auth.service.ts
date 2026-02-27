@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -8,6 +8,8 @@ import { IJwtPayload, LoginResponseDto } from '@govmunicipio/shared';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     @InjectRepository(PrincipalEntity)
     private readonly principalRepository: Repository<PrincipalEntity>,
@@ -27,10 +29,12 @@ export class AuthService {
     });
 
     if (!principal) {
+      this.logger.warn(`Login failed: user "${username}" not found`);
       throw new UnauthorizedException('Invalid credentials');
     }
 
     if (!principal.isActive) {
+      this.logger.warn(`Login failed: user "${username}" is inactive`);
       throw new UnauthorizedException('Account is inactive');
     }
 
@@ -40,9 +44,11 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
+      this.logger.warn(`Login failed: wrong password for "${username}"`);
       throw new UnauthorizedException('Invalid credentials');
     }
 
+    this.logger.log(`Login OK: "${username}" roles=[${principal.roles.map((r) => r.name).join(', ')}]`);
     return principal;
   }
 

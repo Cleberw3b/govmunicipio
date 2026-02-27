@@ -3,7 +3,6 @@ import { Type } from 'class-transformer';
 import {
   IsString,
   IsNotEmpty,
-  MinLength,
   ValidateNested,
   IsOptional,
   Length,
@@ -55,10 +54,6 @@ export class AdminDataDto {
   @IsString()
   @IsNotEmpty()
   username!: string;
-
-  @IsString()
-  @MinLength(8)
-  password!: string;
 
   @IsString()
   @IsNotEmpty()

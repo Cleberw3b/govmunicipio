@@ -22,6 +22,12 @@ export class PrincipalEntity extends BaseEntity {
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive!: boolean;
 
+  @Column({ type: 'varchar', nullable: true })
+  email?: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  phone?: string | null;
+
   @Column({ type: 'timestamp', nullable: true, name: 'last_login' })
   lastLogin!: Date | null;
 

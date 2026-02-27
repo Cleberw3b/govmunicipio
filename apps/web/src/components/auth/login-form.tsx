@@ -88,6 +88,15 @@ export function LoginForm() {
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? 'Entrando...' : 'Entrar'}
           </Button>
+          <div className="text-center text-sm text-muted-foreground">
+            Primeiro acesso?{' '}
+            <a
+              href="/auth/set-password"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              Defina sua senha
+            </a>
+          </div>
         </form>
       </CardContent>
     </Card>

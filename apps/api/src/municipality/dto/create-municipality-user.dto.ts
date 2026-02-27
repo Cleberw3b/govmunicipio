@@ -1,8 +1,16 @@
-import { IsString, IsNotEmpty, IsIn, MinLength, Matches } from 'class-validator';
+import { IsString, IsNotEmpty, IsIn, IsOptional, IsEmail, Matches } from 'class-validator';
 
 export class CreateMunicipalityUserDto {
   @IsString() @IsNotEmpty() username!: string;
-  @IsString() @MinLength(8) password!: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+
   @IsString() @IsNotEmpty() firstName!: string;
   @IsString() @IsNotEmpty() lastName!: string;
   @IsString()
