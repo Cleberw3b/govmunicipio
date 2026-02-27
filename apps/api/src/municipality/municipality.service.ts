@@ -18,12 +18,14 @@ import {
   PersonIdentificationEntity,
   OrganizationEntity,
   MunicipalityEntity,
+  HospitalEntity,
   HotelEntity,
   RoleEntity,
 } from '../entities';
 import { CreateMunicipalityUserDto } from './dto/create-municipality-user.dto';
 import { UpdateMunicipalityUserDto } from './dto/update-municipality-user.dto';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { CreateMunicipalityHospitalDto } from './dto/create-hospital.dto';
 import { CreateHotelDto } from './dto/create-hotel.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
 
@@ -269,6 +271,68 @@ export class MunicipalityService {
           (err as { code: string }).code === '23505'
         ) {
           throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+        }
+        throw err;
+      });
+  }
+
+  async findAllHospitals(): Promise<HospitalEntity[]> {
+    return this.dataSource
+      .getRepository(HospitalEntity)
+      .find({ relations: { organization: { address: true } }, order: { createdAt: 'DESC' } });
+  }
+
+  async createHospital(dto: CreateMunicipalityHospitalDto): Promise<HospitalEntity> {
+    const existingOrg = await this.dataSource
+      .getRepository(OrganizationEntity)
+      .findOne({ where: { cnpj: dto.cnpj } });
+    if (existingOrg) throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+
+    const existingHospital = await this.dataSource
+      .getRepository(HospitalEntity)
+      .findOne({ where: { cnesCode: dto.cnesCode } });
+    if (existingHospital) throw new ConflictException(`Hospital with CNES code ${dto.cnesCode} already exists`);
+
+    const hasAddress = dto.city || dto.state || dto.street || dto.number || dto.neighborhood || dto.zipCode;
+
+    return this.dataSource
+      .transaction(async (manager) => {
+        let address: AddressEntity | undefined;
+        if (hasAddress) {
+          address = await manager.save(
+            manager.create(AddressEntity, {
+              city: dto.city ?? '',
+              state: dto.state ?? '',
+              street: dto.street,
+              number: dto.number,
+              neighborhood: dto.neighborhood,
+              zipCode: dto.zipCode,
+            }),
+          );
+        }
+
+        const organization = await manager.save(
+          manager.create(OrganizationEntity, {
+            name: dto.name,
+            cnpj: dto.cnpj,
+            isActive: true,
+            ...(address ? { address } : {}),
+          }),
+        );
+
+        return manager.save(
+          manager.create(HospitalEntity, { cnesCode: dto.cnesCode, organization }),
+        );
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ConflictException) throw err;
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        ) {
+          throw new ConflictException(`Duplicate CNPJ or CNES code`);
         }
         throw err;
       });

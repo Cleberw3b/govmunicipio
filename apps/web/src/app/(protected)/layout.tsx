@@ -5,9 +5,9 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
   BedDouble,
-  Building,
   Building2,
   FileText,
+  Hospital,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -34,7 +34,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
     { name: 'TFD > Solicitações', href: '/tfd/requests', icon: FileText },
     ...(adminMunicipality
       ? [
-          { name: 'Organizações', href: '/dashboard/organizations', icon: Building },
+          { name: 'Hospitais', href: '/dashboard/hospitals', icon: Hospital },
           { name: 'Hotéis', href: '/dashboard/hotels', icon: BedDouble },
           { name: 'Usuários', href: '/dashboard/users', icon: Users },
         ]

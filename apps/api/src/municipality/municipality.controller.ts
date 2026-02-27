@@ -13,6 +13,7 @@ import { MunicipalityService } from './municipality.service';
 import { CreateMunicipalityUserDto } from './dto/create-municipality-user.dto';
 import { UpdateMunicipalityUserDto } from './dto/update-municipality-user.dto';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { CreateMunicipalityHospitalDto } from './dto/create-hospital.dto';
 import { CreateHotelDto } from './dto/create-hotel.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -22,7 +23,7 @@ import {
   CurrentPrincipal,
   CurrentPrincipalData,
 } from '../auth/decorators/current-principal.decorator';
-import { HotelEntity, OrganizationEntity, PrincipalEntity } from '../entities';
+import { HospitalEntity, HotelEntity, OrganizationEntity, PrincipalEntity } from '../entities';
 
 @Controller('municipality')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -65,6 +66,17 @@ export class MunicipalityController {
     @Body() dto: CreateOrganizationDto,
   ): Promise<OrganizationEntity> {
     return this.municipalityService.createOrganization(dto);
+  }
+
+  @Get('hospitals')
+  findAllHospitals(): Promise<HospitalEntity[]> {
+    return this.municipalityService.findAllHospitals();
+  }
+
+  @Post('hospitals')
+  @HttpCode(HttpStatus.CREATED)
+  createHospital(@Body() dto: CreateMunicipalityHospitalDto): Promise<HospitalEntity> {
+    return this.municipalityService.createHospital(dto);
   }
 
   @Get('hotels')
