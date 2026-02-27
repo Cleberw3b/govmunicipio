@@ -599,7 +599,7 @@ export class AdminService {
     return this.dataSource
       .getRepository(HotelEntity)
       .find({
-        relations: { organization: { address: true }, municipality: { organization: true } },
+        relations: { organization: { address: true } },
         order: { createdAt: 'DESC' },
       });
   }
@@ -609,12 +609,6 @@ export class AdminService {
       .getRepository(OrganizationEntity)
       .findOne({ where: { cnpj: dto.cnpj } });
     if (existingOrg) throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
-
-    let municipality: MunicipalityEntity | null = null;
-    if (dto.municipalityId) {
-      municipality = await this.municipalityRepository.findOne({ where: { id: dto.municipalityId } }) ?? null;
-      if (!municipality) throw new NotFoundException(`Municipality ${dto.municipalityId} not found`);
-    }
 
     const hasAddress = dto.city || dto.state || dto.street || dto.number || dto.neighborhood || dto.zipCode;
 
@@ -644,12 +638,11 @@ export class AdminService {
         );
 
         return manager.save(
-          manager.create(HotelEntity, { organization, municipality }),
+          manager.create(HotelEntity, { organization }),
         );
       })
       .catch((err: unknown) => {
         if (err instanceof ConflictException) throw err;
-        if (err instanceof NotFoundException) throw err;
         if (
           typeof err === 'object' &&
           err !== null &&
@@ -665,7 +658,7 @@ export class AdminService {
   async updateHotel(id: string, dto: UpdateHotelDto): Promise<HotelEntity> {
     const hotel = await this.dataSource
       .getRepository(HotelEntity)
-      .findOne({ where: { id }, relations: { organization: { address: true }, municipality: true } });
+      .findOne({ where: { id }, relations: { organization: { address: true } } });
     if (!hotel) throw new NotFoundException(`Hotel ${id} not found`);
 
     if (dto.cnpj !== undefined) {
@@ -713,21 +706,11 @@ export class AdminService {
       if (Object.keys(orgUpdates).length > 0) {
         await manager.update(OrganizationEntity, { id: hotel.organization.id }, orgUpdates);
       }
-
-      if (dto.municipalityId !== undefined) {
-        if (dto.municipalityId === null) {
-          await manager.update(HotelEntity, { id }, { municipality: null });
-        } else {
-          const mun = await manager.findOne(MunicipalityEntity, { where: { id: dto.municipalityId } });
-          if (!mun) throw new NotFoundException(`Municipality ${dto.municipalityId} not found`);
-          await manager.update(HotelEntity, { id }, { municipality: mun });
-        }
-      }
     });
 
     return this.dataSource
       .getRepository(HotelEntity)
-      .findOne({ where: { id }, relations: { organization: { address: true }, municipality: { organization: true } } }) as Promise<HotelEntity>;
+      .findOne({ where: { id }, relations: { organization: { address: true } } }) as Promise<HotelEntity>;
   }
 
   async updateMunicipality(

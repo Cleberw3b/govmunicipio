@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Patch,
   Param,
   Body,
@@ -15,7 +16,6 @@ import { UpdateMunicipalityUserDto } from './dto/update-municipality-user.dto';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { CreateMunicipalityHospitalDto } from './dto/create-hospital.dto';
 import { CreateHotelDto } from './dto/create-hotel.dto';
-import { UpdateHotelDto } from './dto/update-hotel.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -68,20 +68,50 @@ export class MunicipalityController {
     return this.municipalityService.createOrganization(dto);
   }
 
+  // ─── Hospitals ─────────────────────────────────────────────────────────────
+
   @Get('hospitals')
-  findAllHospitals(): Promise<HospitalEntity[]> {
-    return this.municipalityService.findAllHospitals();
+  findLinkedHospitals(@CurrentPrincipal() p: CurrentPrincipalData): Promise<HospitalEntity[]> {
+    return this.municipalityService.findLinkedHospitals(p.organizationId);
   }
 
   @Post('hospitals')
   @HttpCode(HttpStatus.CREATED)
-  createHospital(@Body() dto: CreateMunicipalityHospitalDto): Promise<HospitalEntity> {
-    return this.municipalityService.createHospital(dto);
+  createHospital(
+    @Body() dto: CreateMunicipalityHospitalDto,
+    @CurrentPrincipal() p: CurrentPrincipalData,
+  ): Promise<HospitalEntity> {
+    return this.municipalityService.createHospital(dto, p.organizationId);
   }
 
+  @Get('hospitals/available')
+  findAvailableHospitals(@CurrentPrincipal() p: CurrentPrincipalData): Promise<HospitalEntity[]> {
+    return this.municipalityService.findAvailableHospitals(p.organizationId);
+  }
+
+  @Post('hospitals/:hospitalId/link')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  linkHospital(
+    @Param('hospitalId') hospitalId: string,
+    @CurrentPrincipal() p: CurrentPrincipalData,
+  ): Promise<void> {
+    return this.municipalityService.linkHospital(hospitalId, p.organizationId);
+  }
+
+  @Delete('hospitals/:hospitalId/link')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  unlinkHospital(
+    @Param('hospitalId') hospitalId: string,
+    @CurrentPrincipal() p: CurrentPrincipalData,
+  ): Promise<void> {
+    return this.municipalityService.unlinkHospital(hospitalId, p.organizationId);
+  }
+
+  // ─── Hotels ────────────────────────────────────────────────────────────────
+
   @Get('hotels')
-  findHotels(@CurrentPrincipal() p: CurrentPrincipalData): Promise<HotelEntity[]> {
-    return this.municipalityService.findHotels(p.organizationId);
+  findLinkedHotels(@CurrentPrincipal() p: CurrentPrincipalData): Promise<HotelEntity[]> {
+    return this.municipalityService.findLinkedHotels(p.organizationId);
   }
 
   @Post('hotels')
@@ -93,13 +123,26 @@ export class MunicipalityController {
     return this.municipalityService.createHotel(dto, p.organizationId);
   }
 
-  @Patch('hotels/:id')
-  @HttpCode(HttpStatus.OK)
-  updateHotel(
-    @Param('id') id: string,
-    @Body() dto: UpdateHotelDto,
+  @Get('hotels/available')
+  findAvailableHotels(@CurrentPrincipal() p: CurrentPrincipalData): Promise<HotelEntity[]> {
+    return this.municipalityService.findAvailableHotels(p.organizationId);
+  }
+
+  @Post('hotels/:hotelId/link')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  linkHotel(
+    @Param('hotelId') hotelId: string,
     @CurrentPrincipal() p: CurrentPrincipalData,
-  ): Promise<HotelEntity> {
-    return this.municipalityService.updateHotel(id, dto, p.organizationId);
+  ): Promise<void> {
+    return this.municipalityService.linkHotel(hotelId, p.organizationId);
+  }
+
+  @Delete('hotels/:hotelId/link')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  unlinkHotel(
+    @Param('hotelId') hotelId: string,
+    @CurrentPrincipal() p: CurrentPrincipalData,
+  ): Promise<void> {
+    return this.municipalityService.unlinkHotel(hotelId, p.organizationId);
   }
 }

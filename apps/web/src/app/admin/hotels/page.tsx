@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, ChevronsUpDown, Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -13,43 +13,21 @@ import { Label } from '@/components/ui/label';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
-import {
-  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
-} from '@/components/ui/command';
-import {
-  Popover, PopoverContent, PopoverTrigger,
-} from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
 
 interface Hotel {
   id: string;
   organization: {
-    id: string;
     name: string;
     cnpj: string;
     isActive: boolean;
-    address: {
-      city: string;
-      state: string;
-    } | null;
+    address: { city: string; state: string } | null;
   };
-  municipality: {
-    id: string;
-    state: string;
-    organization: { name: string };
-  } | null;
-}
-
-interface MunicipalityOption {
-  id: string;
-  label: string;
 }
 
 interface HotelForm {
   name: string;
   cnpj: string;
-  municipalityId: string | null;
   city: string;
   state: string;
   street: string;
@@ -62,7 +40,6 @@ interface HotelForm {
 const EMPTY_FORM: HotelForm = {
   name: '',
   cnpj: '',
-  municipalityId: null,
   city: '',
   state: '',
   street: '',
@@ -72,11 +49,9 @@ const EMPTY_FORM: HotelForm = {
   isActive: true,
 };
 
-export default function HotelsPage() {
+export default function AdminHotelsPage() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
-  const [municipalities, setMunicipalities] = useState<MunicipalityOption[]>([]);
-  const [comboOpen, setComboOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<'create' | 'edit' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<HotelForm>(EMPTY_FORM);
@@ -92,30 +67,16 @@ export default function HotelsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  function loadMunicipalities() {
-    if (municipalities.length === 0) {
-      apiClient<{ id: string; state: string; organization: { name: string } }[]>('/admin/municipalities')
-        .then((data) =>
-          setMunicipalities(
-            data.map((m) => ({ id: m.id, label: `${m.organization.name} — ${m.state}` })),
-          ),
-        )
-        .catch(console.error);
-    }
-  }
-
   function openCreate() {
     setForm(EMPTY_FORM);
     setEditingId(null);
     setDialogMode('create');
-    loadMunicipalities();
   }
 
   function openEdit(h: Hotel) {
     setForm({
       name: h.organization.name,
       cnpj: h.organization.cnpj,
-      municipalityId: h.municipality?.id ?? null,
       city: h.organization.address?.city ?? '',
       state: h.organization.address?.state ?? '',
       street: '',
@@ -126,13 +87,11 @@ export default function HotelsPage() {
     });
     setEditingId(h.id);
     setDialogMode('edit');
-    loadMunicipalities();
   }
 
   function closeDialog() {
     setDialogMode(null);
     setEditingId(null);
-    setComboOpen(false);
   }
 
   function updateField(field: keyof HotelForm) {
@@ -152,7 +111,6 @@ export default function HotelsPage() {
           body: JSON.stringify({
             name: form.name,
             cnpj: form.cnpj,
-            municipalityId: form.municipalityId ?? undefined,
             ...(form.city || form.state || form.street ? {
               city: form.city || undefined,
               state: form.state || undefined,
@@ -169,7 +127,6 @@ export default function HotelsPage() {
         if (form.name) body.name = form.name;
         if (form.cnpj) body.cnpj = form.cnpj;
         body.isActive = form.isActive;
-        body.municipalityId = form.municipalityId;
         if (form.city) body.city = form.city;
         if (form.state) body.state = form.state;
         if (form.street) body.street = form.street;
@@ -213,39 +170,41 @@ export default function HotelsPage() {
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>CNPJ</TableHead>
-                <TableHead>Município</TableHead>
                 <TableHead>Cidade/Estado</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-16" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {hotels.map((h) => (
-                <TableRow key={h.id}>
-                  <TableCell className="font-medium">{h.organization.name}</TableCell>
-                  <TableCell className="font-mono text-sm">{h.organization.cnpj}</TableCell>
-                  <TableCell>
-                    {h.municipality
-                      ? h.municipality.organization.name
-                      : <span className="italic text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell>
-                    {h.organization.address
-                      ? `${h.organization.address.city}/${h.organization.address.state}`
-                      : <span className="italic text-muted-foreground">—</span>}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={h.organization.isActive ? 'default' : 'secondary'}>
-                      {h.organization.isActive ? 'Ativo' : 'Inativo'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(h)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+              {hotels.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    Nenhum hotel cadastrado
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                hotels.map((h) => (
+                  <TableRow key={h.id}>
+                    <TableCell className="font-medium">{h.organization.name}</TableCell>
+                    <TableCell className="font-mono text-sm">{h.organization.cnpj}</TableCell>
+                    <TableCell>
+                      {h.organization.address
+                        ? `${h.organization.address.city}/${h.organization.address.state}`
+                        : <span className="italic text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={h.organization.isActive ? 'default' : 'secondary'}>
+                        {h.organization.isActive ? 'Ativo' : 'Inativo'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(h)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
@@ -267,58 +226,6 @@ export default function HotelsPage() {
             <div className="space-y-2">
               <Label>CNPJ *</Label>
               <Input value={form.cnpj} onChange={updateField('cnpj')} placeholder="XX.XXX.XXX/XXXX-XX" />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Município</Label>
-              <Popover open={comboOpen} onOpenChange={setComboOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={comboOpen}
-                    className="w-full justify-between font-normal"
-                  >
-                    {form.municipalityId
-                      ? municipalities.find((m) => m.id === form.municipalityId)?.label ?? 'Carregando...'
-                      : 'Sem município'}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
-                  <Command>
-                    <CommandInput placeholder="Buscar município..." />
-                    <CommandList>
-                      <CommandEmpty>Nenhum município encontrado.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem
-                          value="__none__"
-                          onSelect={() => {
-                            setForm((prev) => ({ ...prev, municipalityId: null }));
-                            setComboOpen(false);
-                          }}
-                        >
-                          <Check className={cn('mr-2 h-4 w-4', form.municipalityId === null ? 'opacity-100' : 'opacity-0')} />
-                          Sem município
-                        </CommandItem>
-                        {municipalities.map((m) => (
-                          <CommandItem
-                            key={m.id}
-                            value={m.label}
-                            onSelect={() => {
-                              setForm((prev) => ({ ...prev, municipalityId: m.id }));
-                              setComboOpen(false);
-                            }}
-                          >
-                            <Check className={cn('mr-2 h-4 w-4', form.municipalityId === m.id ? 'opacity-100' : 'opacity-0')} />
-                            {m.label}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
             </div>
 
             <p className="text-sm font-medium text-muted-foreground">Endereço (opcional)</p>

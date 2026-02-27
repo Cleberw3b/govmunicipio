@@ -2,10 +2,8 @@ import {
   IsString,
   IsOptional,
   IsBoolean,
-  IsUUID,
   IsNotEmpty,
   Matches,
-  ValidateIf,
   Length,
 } from 'class-validator';
 
@@ -21,11 +19,6 @@ export class UpdateHotelDto {
     message: 'CNPJ must be in format XX.XXX.XXX/XXXX-XX',
   })
   cnpj?: string;
-
-  @IsOptional()
-  @ValidateIf((o) => o.municipalityId !== null)
-  @IsUUID()
-  municipalityId?: string | null;
 
   @IsOptional()
   @IsBoolean()

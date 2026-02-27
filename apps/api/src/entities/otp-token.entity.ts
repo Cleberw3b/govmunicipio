@@ -9,9 +9,9 @@ export class OtpTokenEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 6 })
   code!: string;
 
-  @Column({ name: 'expires_at' })
+  @Column({ type: 'timestamp', name: 'expires_at' })
   expiresAt!: Date;
 
-  @Column({ name: 'used_at', nullable: true })
+  @Column({ type: 'timestamp', name: 'used_at', nullable: true })
   usedAt?: Date | null;
 }

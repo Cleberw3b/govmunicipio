@@ -36,7 +36,14 @@ export async function apiClient<T>(
     const error = await response
       .json()
       .catch(() => ({ message: 'Request failed' }));
-    throw new Error(error.message || `HTTP ${response.status}`);
+    const message = Array.isArray(error.message)
+      ? error.message.join('\n')
+      : (error.message || `HTTP ${response.status}`);
+    throw new Error(message);
+  }
+
+  if (response.status === 204 || response.headers.get('content-length') === '0') {
+    return undefined as T;
   }
 
   return response.json();

@@ -6,7 +6,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository, InjectDataSource } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, In } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { OtpService } from '../auth/otp.service';
@@ -21,13 +21,14 @@ import {
   HospitalEntity,
   HotelEntity,
   RoleEntity,
+  MunicipalityHospitalLinkEntity,
+  MunicipalityHotelLinkEntity,
 } from '../entities';
 import { CreateMunicipalityUserDto } from './dto/create-municipality-user.dto';
 import { UpdateMunicipalityUserDto } from './dto/update-municipality-user.dto';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { CreateMunicipalityHospitalDto } from './dto/create-hospital.dto';
 import { CreateHotelDto } from './dto/create-hotel.dto';
-import { UpdateHotelDto } from './dto/update-hotel.dto';
 
 @Injectable()
 export class MunicipalityService {
@@ -158,7 +159,6 @@ export class MunicipalityService {
         await manager.update(PersonEntity, { id: person.id }, personUpdates);
       }
 
-      // I2: Wrap CPF update in try-catch to surface uniqueness violations as ConflictException
       if (dto.cpf !== undefined) {
         if (!person.identification) {
           throw new BadRequestException(`User ${id} has no identification record`);
@@ -202,7 +202,6 @@ export class MunicipalityService {
       }
     });
 
-    // C2: Await the re-fetch and explicitly check for null instead of casting
     const updated = await this.principalRepository
       .createQueryBuilder('p')
       .leftJoinAndSelect('p.roles', 'role')
@@ -276,13 +275,19 @@ export class MunicipalityService {
       });
   }
 
-  async findAllHospitals(): Promise<HospitalEntity[]> {
-    return this.dataSource
-      .getRepository(HospitalEntity)
-      .find({ relations: { organization: { address: true } }, order: { createdAt: 'DESC' } });
+  private async getMunicipalityByOrganizationId(organizationId: string): Promise<MunicipalityEntity> {
+    const municipality = await this.dataSource
+      .getRepository(MunicipalityEntity)
+      .findOne({ where: { organization: { id: organizationId } } });
+    if (!municipality) throw new NotFoundException('Municipality not found for this organization');
+    return municipality;
   }
 
-  async createHospital(dto: CreateMunicipalityHospitalDto): Promise<HospitalEntity> {
+  // ─── Hospitals ───────────────────────────────────────────────────────────────
+
+  async createHospital(dto: CreateMunicipalityHospitalDto, organizationId: string): Promise<HospitalEntity> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+
     const existingOrg = await this.dataSource
       .getRepository(OrganizationEntity)
       .findOne({ where: { cnpj: dto.cnpj } });
@@ -295,7 +300,7 @@ export class MunicipalityService {
 
     const hasAddress = dto.city || dto.state || dto.street || dto.number || dto.neighborhood || dto.zipCode;
 
-    return this.dataSource
+    const hospital = await this.dataSource
       .transaction(async (manager) => {
         let address: AddressEntity | undefined;
         if (hasAddress) {
@@ -336,26 +341,73 @@ export class MunicipalityService {
         }
         throw err;
       });
+
+    await this.dataSource
+      .getRepository(MunicipalityHospitalLinkEntity)
+      .save({ municipalityId: municipality.id, hospitalId: hospital.id });
+
+    return hospital;
   }
 
-  private async getMunicipalityByOrganizationId(organizationId: string): Promise<MunicipalityEntity> {
-    const municipality = await this.dataSource
-      .getRepository(MunicipalityEntity)
-      .findOne({ where: { organization: { id: organizationId } } });
-    if (!municipality) throw new NotFoundException('Municipality not found for this organization');
-    return municipality;
-  }
-
-  async findHotels(organizationId: string): Promise<HotelEntity[]> {
+  async findLinkedHospitals(organizationId: string): Promise<HospitalEntity[]> {
     const municipality = await this.getMunicipalityByOrganizationId(organizationId);
-    return this.dataSource
-      .getRepository(HotelEntity)
-      .find({
-        where: { municipality: { id: municipality.id } },
-        relations: { organization: { address: true } },
-        order: { createdAt: 'DESC' },
-      });
+    const links = await this.dataSource
+      .getRepository(MunicipalityHospitalLinkEntity)
+      .find({ where: { municipalityId: municipality.id } });
+    if (links.length === 0) return [];
+    return this.dataSource.getRepository(HospitalEntity).find({
+      where: { id: In(links.map((l) => l.hospitalId)) },
+      relations: { organization: { address: true } },
+      order: { createdAt: 'DESC' },
+    });
   }
+
+  async findAvailableHospitals(organizationId: string): Promise<HospitalEntity[]> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+    const links = await this.dataSource
+      .getRepository(MunicipalityHospitalLinkEntity)
+      .find({ where: { municipalityId: municipality.id } });
+    const linkedIds = links.map((l) => l.hospitalId);
+
+    const qb = this.dataSource
+      .getRepository(HospitalEntity)
+      .createQueryBuilder('h')
+      .leftJoinAndSelect('h.organization', 'org')
+      .leftJoinAndSelect('org.address', 'address')
+      .orderBy('org.name', 'ASC');
+
+    if (linkedIds.length > 0) {
+      qb.where('h.id NOT IN (:...linkedIds)', { linkedIds });
+    }
+
+    return qb.getMany();
+  }
+
+  async linkHospital(hospitalId: string, organizationId: string): Promise<void> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+    const hospital = await this.dataSource
+      .getRepository(HospitalEntity)
+      .findOne({ where: { id: hospitalId } });
+    if (!hospital) throw new NotFoundException(`Hospital ${hospitalId} not found`);
+
+    const existing = await this.dataSource
+      .getRepository(MunicipalityHospitalLinkEntity)
+      .findOne({ where: { municipalityId: municipality.id, hospitalId } });
+    if (existing) return;
+
+    await this.dataSource
+      .getRepository(MunicipalityHospitalLinkEntity)
+      .save({ municipalityId: municipality.id, hospitalId });
+  }
+
+  async unlinkHospital(hospitalId: string, organizationId: string): Promise<void> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+    await this.dataSource
+      .getRepository(MunicipalityHospitalLinkEntity)
+      .delete({ municipalityId: municipality.id, hospitalId });
+  }
+
+  // ─── Hotels ──────────────────────────────────────────────────────────────────
 
   async createHotel(dto: CreateHotelDto, organizationId: string): Promise<HotelEntity> {
     const municipality = await this.getMunicipalityByOrganizationId(organizationId);
@@ -367,7 +419,7 @@ export class MunicipalityService {
 
     const hasAddress = dto.city || dto.state || dto.street || dto.number || dto.neighborhood || dto.zipCode;
 
-    return this.dataSource
+    const hotel = await this.dataSource
       .transaction(async (manager) => {
         let address: AddressEntity | undefined;
         if (hasAddress) {
@@ -393,7 +445,7 @@ export class MunicipalityService {
         );
 
         return manager.save(
-          manager.create(HotelEntity, { organization, municipality }),
+          manager.create(HotelEntity, { organization }),
         );
       })
       .catch((err: unknown) => {
@@ -408,69 +460,69 @@ export class MunicipalityService {
         }
         throw err;
       });
+
+    await this.dataSource
+      .getRepository(MunicipalityHotelLinkEntity)
+      .save({ municipalityId: municipality.id, hotelId: hotel.id });
+
+    return hotel;
   }
 
-  async updateHotel(id: string, dto: UpdateHotelDto, organizationId: string): Promise<HotelEntity> {
+  async findLinkedHotels(organizationId: string): Promise<HotelEntity[]> {
     const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+    const links = await this.dataSource
+      .getRepository(MunicipalityHotelLinkEntity)
+      .find({ where: { municipalityId: municipality.id } });
+    if (links.length === 0) return [];
+    return this.dataSource.getRepository(HotelEntity).find({
+      where: { id: In(links.map((l) => l.hotelId)) },
+      relations: { organization: { address: true } },
+      order: { createdAt: 'DESC' },
+    });
+  }
 
+  async findAvailableHotels(organizationId: string): Promise<HotelEntity[]> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+    const links = await this.dataSource
+      .getRepository(MunicipalityHotelLinkEntity)
+      .find({ where: { municipalityId: municipality.id } });
+    const linkedIds = links.map((l) => l.hotelId);
+
+    const qb = this.dataSource
+      .getRepository(HotelEntity)
+      .createQueryBuilder('h')
+      .leftJoinAndSelect('h.organization', 'org')
+      .leftJoinAndSelect('org.address', 'address')
+      .orderBy('org.name', 'ASC');
+
+    if (linkedIds.length > 0) {
+      qb.where('h.id NOT IN (:...linkedIds)', { linkedIds });
+    }
+
+    return qb.getMany();
+  }
+
+  async linkHotel(hotelId: string, organizationId: string): Promise<void> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
     const hotel = await this.dataSource
       .getRepository(HotelEntity)
-      .findOne({ where: { id }, relations: { organization: { address: true }, municipality: true } });
-    if (!hotel) throw new NotFoundException(`Hotel ${id} not found`);
+      .findOne({ where: { id: hotelId } });
+    if (!hotel) throw new NotFoundException(`Hotel ${hotelId} not found`);
 
-    if (!hotel.municipality || hotel.municipality.id !== municipality.id) {
-      throw new ForbiddenException('Hotel does not belong to your municipality');
-    }
+    const existing = await this.dataSource
+      .getRepository(MunicipalityHotelLinkEntity)
+      .findOne({ where: { municipalityId: municipality.id, hotelId } });
+    if (existing) return;
 
-    if (dto.cnpj !== undefined) {
-      const conflict = await this.dataSource
-        .getRepository(OrganizationEntity)
-        .findOne({ where: { cnpj: dto.cnpj } });
-      if (conflict && conflict.id !== hotel.organization.id) {
-        throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
-      }
-    }
+    await this.dataSource
+      .getRepository(MunicipalityHotelLinkEntity)
+      .save({ municipalityId: municipality.id, hotelId });
+  }
 
-    await this.dataSource.transaction(async (manager) => {
-      const addressFields = ['city', 'state', 'street', 'number', 'neighborhood', 'zipCode'] as const;
-      const hasAddressUpdates = addressFields.some((f) => dto[f] !== undefined);
-
-      if (hasAddressUpdates) {
-        if (hotel.organization.address) {
-          const addressUpdates: Partial<AddressEntity> = {};
-          if (dto.city !== undefined) addressUpdates.city = dto.city;
-          if (dto.state !== undefined) addressUpdates.state = dto.state;
-          if (dto.street !== undefined) addressUpdates.street = dto.street;
-          if (dto.number !== undefined) addressUpdates.number = dto.number;
-          if (dto.neighborhood !== undefined) addressUpdates.neighborhood = dto.neighborhood;
-          if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
-          await manager.update(AddressEntity, { id: hotel.organization.address.id }, addressUpdates);
-        } else {
-          const address = await manager.save(
-            manager.create(AddressEntity, {
-              city: dto.city ?? '',
-              state: dto.state ?? '',
-              street: dto.street,
-              number: dto.number,
-              neighborhood: dto.neighborhood,
-              zipCode: dto.zipCode,
-            }),
-          );
-          await manager.update(OrganizationEntity, { id: hotel.organization.id }, { address });
-        }
-      }
-
-      const orgUpdates: Partial<OrganizationEntity> = {};
-      if (dto.name !== undefined) orgUpdates.name = dto.name;
-      if (dto.cnpj !== undefined) orgUpdates.cnpj = dto.cnpj;
-      if (dto.isActive !== undefined) orgUpdates.isActive = dto.isActive;
-      if (Object.keys(orgUpdates).length > 0) {
-        await manager.update(OrganizationEntity, { id: hotel.organization.id }, orgUpdates);
-      }
-    });
-
-    return this.dataSource
-      .getRepository(HotelEntity)
-      .findOne({ where: { id }, relations: { organization: { address: true } } }) as Promise<HotelEntity>;
+  async unlinkHotel(hotelId: string, organizationId: string): Promise<void> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+    await this.dataSource
+      .getRepository(MunicipalityHotelLinkEntity)
+      .delete({ municipalityId: municipality.id, hotelId });
   }
 }

@@ -2,7 +2,6 @@ import {
   IsString,
   IsOptional,
   IsNotEmpty,
-  IsUUID,
   Matches,
   Length,
 } from 'class-validator';
@@ -18,10 +17,6 @@ export class CreateHotelDto {
     message: 'CNPJ must be in format XX.XXX.XXX/XXXX-XX',
   })
   cnpj!: string;
-
-  @IsOptional()
-  @IsUUID()
-  municipalityId?: string;
 
   @IsOptional()
   @IsString()
