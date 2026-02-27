@@ -4,6 +4,10 @@ export class InitialSchema1771679344874 implements MigrationInterface {
     name = 'InitialSchema1771679344874'
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // Production DB already has this schema from synchronize:true — skip if tables exist
+        const alreadyExists = await queryRunner.hasTable('specialty');
+        if (alreadyExists) return;
+
         await queryRunner.query(`CREATE TABLE "specialty" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), "name" character varying NOT NULL, "description" character varying, "is_active" boolean NOT NULL DEFAULT true, CONSTRAINT "UQ_6caedcf8a5f84e3072c5a380a16" UNIQUE ("name"), CONSTRAINT "PK_9cf4ae334dc4a1ab1e08956460e" PRIMARY KEY ("id"))`);
         await queryRunner.query(`CREATE TABLE "status" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), "code" character varying NOT NULL, "label" character varying NOT NULL, "sort_order" integer NOT NULL, "is_active" boolean NOT NULL DEFAULT true, CONSTRAINT "UQ_e77743a7955e652aa7ebf4a7650" UNIQUE ("code"), CONSTRAINT "PK_e12743a7086ec826733f54e1d95" PRIMARY KEY ("id"))`);
         await queryRunner.query(`CREATE TABLE "permission" ("id" uuid NOT NULL DEFAULT uuid_generate_v4(), "created_at" TIMESTAMP NOT NULL DEFAULT now(), "updated_at" TIMESTAMP NOT NULL DEFAULT now(), "resource" character varying NOT NULL, "action" character varying NOT NULL, "description" character varying, CONSTRAINT "UQ_b7f40c3248fc7ad7c35151e2d11" UNIQUE ("resource", "action"), CONSTRAINT "PK_3b8b97af9d9d8807e41e6f48362" PRIMARY KEY ("id"))`);
