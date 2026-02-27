@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
+  BedDouble,
   Building,
   Building2,
   FileText,
@@ -34,6 +35,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
     ...(adminMunicipality
       ? [
           { name: 'Organizações', href: '/dashboard/organizations', icon: Building },
+          { name: 'Hotéis', href: '/dashboard/hotels', icon: BedDouble },
           { name: 'Usuários', href: '/dashboard/users', icon: Users },
         ]
       : []),

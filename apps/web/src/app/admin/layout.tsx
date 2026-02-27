@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Building2, Users, LayoutDashboard, LogOut, ShieldAlert } from 'lucide-react';
+import { BedDouble, Building2, Hospital, Users, LogOut, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { isAuthenticated, logout } from '@/lib/auth';
@@ -11,6 +11,8 @@ import { isSuperAdmin } from '@/lib/admin-auth';
 
 const adminNav = [
   { name: 'Municípios', href: '/admin/municipalities', icon: Building2 },
+  { name: 'Hospitais', href: '/admin/hospitals', icon: Hospital },
+  { name: 'Hotéis', href: '/admin/hotels', icon: BedDouble },
   { name: 'Usuários', href: '/admin/users', icon: Users },
 ];
 
@@ -51,14 +53,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
 
       <Separator />
 
-      <div className="px-4 py-4 space-y-2">
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <LayoutDashboard className="h-3 w-3" />
-          Voltar ao sistema
-        </Link>
+      <div className="px-4 py-4">
         <Button
           variant="ghost"
           size="sm"

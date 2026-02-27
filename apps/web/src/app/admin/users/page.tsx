@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Check, ChevronsUpDown, Pencil } from 'lucide-react';
+import { Check, ChevronsUpDown, Pencil, Plus } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -61,14 +61,37 @@ interface EditForm {
   organizationId: string | null;
 }
 
+interface CreateForm {
+  username: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  cpf: string;
+  roles: string[];
+  organizationId: string | null;
+}
+
+const EMPTY_CREATE: CreateForm = {
+  username: '',
+  password: '',
+  firstName: '',
+  lastName: '',
+  cpf: '',
+  roles: [],
+  organizationId: null,
+};
+
 export default function UsersPage() {
   const [users, setUsers] = useState<Principal[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Principal | null>(null);
   const [form, setForm] = useState<EditForm | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE);
   const [saving, setSaving] = useState(false);
   const [municipalities, setMunicipalities] = useState<{ orgId: string; label: string }[]>([]);
-  const [comboOpen, setComboOpen] = useState(false);
+  const [editComboOpen, setEditComboOpen] = useState(false);
+  const [createComboOpen, setCreateComboOpen] = useState(false);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -80,18 +103,7 @@ export default function UsersPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  function openEdit(u: Principal) {
-    setEditing(u);
-    setForm({
-      username: u.username,
-      password: '',
-      firstName: u.person?.firstName ?? '',
-      lastName: u.person?.lastName ?? '',
-      cpf: u.person?.identification?.cpf ?? '',
-      isActive: u.isActive,
-      roles: u.roles.map((r) => r.name),
-      organizationId: u.organizations[0]?.id ?? null,
-    });
+  function loadMunicipalities() {
     if (municipalities.length === 0) {
       apiClient<MunicipalityResponse[]>('/admin/municipalities')
         .then((data) =>
@@ -106,12 +118,38 @@ export default function UsersPage() {
     }
   }
 
-  function updateField(field: keyof EditForm) {
+  function openCreate() {
+    setCreateForm(EMPTY_CREATE);
+    setCreating(true);
+    loadMunicipalities();
+  }
+
+  function openEdit(u: Principal) {
+    setEditing(u);
+    setForm({
+      username: u.username,
+      password: '',
+      firstName: u.person?.firstName ?? '',
+      lastName: u.person?.lastName ?? '',
+      cpf: u.person?.identification?.cpf ?? '',
+      isActive: u.isActive,
+      roles: u.roles.map((r) => r.name),
+      organizationId: u.organizations[0]?.id ?? null,
+    });
+    loadMunicipalities();
+  }
+
+  function updateEditField(field: keyof EditForm) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((prev) => prev ? { ...prev, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value } : prev);
   }
 
-  function toggleRole(role: string) {
+  function updateCreateField(field: keyof CreateForm) {
+    return (e: React.ChangeEvent<HTMLInputElement>) =>
+      setCreateForm((prev) => ({ ...prev, [field]: e.target.value }));
+  }
+
+  function toggleEditRole(role: string) {
     setForm((prev) => {
       if (!prev) return prev;
       const roles = prev.roles.includes(role)
@@ -119,6 +157,48 @@ export default function UsersPage() {
         : [...prev.roles, role];
       return { ...prev, roles };
     });
+  }
+
+  function toggleCreateRole(role: string) {
+    setCreateForm((prev) => {
+      const roles = prev.roles.includes(role)
+        ? prev.roles.filter((r) => r !== role)
+        : [...prev.roles, role];
+      return { ...prev, roles };
+    });
+  }
+
+  const isSuperAdminCreate = createForm.roles.includes('super_admin');
+  const requiresPersonCreate = !isSuperAdminCreate && createForm.roles.length > 0;
+
+  async function handleCreate() {
+    setSaving(true);
+    try {
+      const body: Record<string, unknown> = {
+        username: createForm.username,
+        password: createForm.password,
+        roles: createForm.roles,
+      };
+      if (!isSuperAdminCreate) {
+        body.firstName = createForm.firstName;
+        body.lastName = createForm.lastName;
+        body.cpf = createForm.cpf;
+      }
+      if (createForm.organizationId) body.organizationId = createForm.organizationId;
+
+      await apiClient('/admin/users', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      toast.success('Usuário criado!');
+      setCreating(false);
+      setCreateComboOpen(false);
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Erro ao criar');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleSave() {
@@ -144,7 +224,7 @@ export default function UsersPage() {
       });
       toast.success('Usuário atualizado!');
       setEditing(null);
-      setComboOpen(false);
+      setEditComboOpen(false);
       load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao atualizar');
@@ -155,9 +235,15 @@ export default function UsersPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Usuários</h1>
-        <p className="text-muted-foreground">{users.length} usuário(s) cadastrado(s)</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Usuários</h1>
+          <p className="text-muted-foreground">{users.length} usuário(s) cadastrado(s)</p>
+        </div>
+        <Button onClick={openCreate}>
+          <Plus className="h-4 w-4" />
+          Novo Usuário
+        </Button>
       </div>
 
       {loading ? (
@@ -215,7 +301,121 @@ export default function UsersPage() {
         </div>
       )}
 
-      <Dialog open={!!editing} onOpenChange={(open) => { if (!open) { setEditing(null); setComboOpen(false); } }}>
+      {/* Create dialog */}
+      <Dialog open={creating} onOpenChange={(open) => { if (!open) { setCreating(false); setCreateComboOpen(false); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Novo Usuário</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Roles</Label>
+              <div className="flex flex-wrap gap-3">
+                {ALL_ROLES.map((role) => (
+                  <label key={role} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={createForm.roles.includes(role)}
+                      onChange={() => toggleCreateRole(role)}
+                      className="h-4 w-4"
+                    />
+                    {ROLE_LABELS[role]}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {requiresPersonCreate && (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nome *</Label>
+                    <Input value={createForm.firstName} onChange={updateCreateField('firstName')} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Sobrenome *</Label>
+                    <Input value={createForm.lastName} onChange={updateCreateField('lastName')} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>CPF *</Label>
+                  <Input value={createForm.cpf} onChange={updateCreateField('cpf')} placeholder="000.000.000-00" />
+                </div>
+              </>
+            )}
+
+            <div className="space-y-2">
+              <Label>Nome de Usuário *</Label>
+              <Input value={createForm.username} onChange={updateCreateField('username')} />
+            </div>
+            <div className="space-y-2">
+              <Label>Senha *</Label>
+              <Input type="password" value={createForm.password} onChange={updateCreateField('password')} />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Organização</Label>
+              <Popover open={createComboOpen} onOpenChange={setCreateComboOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={createComboOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {createForm.organizationId
+                      ? municipalities.find((m) => m.orgId === createForm.organizationId)?.label ?? 'Carregando...'
+                      : 'Sem organização'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
+                  <Command>
+                    <CommandInput placeholder="Buscar município..." />
+                    <CommandList>
+                      <CommandEmpty>Nenhum município encontrado.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="__none__"
+                          onSelect={() => {
+                            setCreateForm((prev) => ({ ...prev, organizationId: null }));
+                            setCreateComboOpen(false);
+                          }}
+                        >
+                          <Check className={cn('mr-2 h-4 w-4', createForm.organizationId === null ? 'opacity-100' : 'opacity-0')} />
+                          Sem organização
+                        </CommandItem>
+                        {municipalities.map((m) => (
+                          <CommandItem
+                            key={m.orgId}
+                            value={m.label}
+                            onSelect={() => {
+                              setCreateForm((prev) => ({ ...prev, organizationId: m.orgId }));
+                              setCreateComboOpen(false);
+                            }}
+                          >
+                            <Check className={cn('mr-2 h-4 w-4', createForm.organizationId === m.orgId ? 'opacity-100' : 'opacity-0')} />
+                            {m.label}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setCreating(false); setCreateComboOpen(false); }}>Cancelar</Button>
+            <Button onClick={handleCreate} disabled={saving}>
+              {saving ? 'Criando...' : 'Criar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit dialog */}
+      <Dialog open={!!editing} onOpenChange={(open) => { if (!open) { setEditing(null); setEditComboOpen(false); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar Usuário</DialogTitle>
@@ -225,24 +425,24 @@ export default function UsersPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nome</Label>
-                  <Input value={form.firstName} onChange={updateField('firstName')} />
+                  <Input value={form.firstName} onChange={updateEditField('firstName')} />
                 </div>
                 <div className="space-y-2">
                   <Label>Sobrenome</Label>
-                  <Input value={form.lastName} onChange={updateField('lastName')} />
+                  <Input value={form.lastName} onChange={updateEditField('lastName')} />
                 </div>
               </div>
               <div className="space-y-2">
                 <Label>CPF</Label>
-                <Input value={form.cpf} onChange={updateField('cpf')} placeholder="000.000.000-00" />
+                <Input value={form.cpf} onChange={updateEditField('cpf')} placeholder="000.000.000-00" />
               </div>
               <div className="space-y-2">
                 <Label>Nome de Usuário</Label>
-                <Input value={form.username} onChange={updateField('username')} />
+                <Input value={form.username} onChange={updateEditField('username')} />
               </div>
               <div className="space-y-2">
                 <Label>Nova Senha (deixe em branco para manter)</Label>
-                <Input type="password" value={form.password} onChange={updateField('password')} />
+                <Input type="password" value={form.password} onChange={updateEditField('password')} />
               </div>
               <div className="space-y-2">
                 <Label>Roles</Label>
@@ -252,7 +452,7 @@ export default function UsersPage() {
                       <input
                         type="checkbox"
                         checked={form.roles.includes(role)}
-                        onChange={() => toggleRole(role)}
+                        onChange={() => toggleEditRole(role)}
                         className="h-4 w-4"
                       />
                       {ROLE_LABELS[role]}
@@ -262,12 +462,12 @@ export default function UsersPage() {
               </div>
               <div className="space-y-2">
                 <Label>Organização</Label>
-                <Popover open={comboOpen} onOpenChange={setComboOpen}>
+                <Popover open={editComboOpen} onOpenChange={setEditComboOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
                       role="combobox"
-                      aria-expanded={comboOpen}
+                      aria-expanded={editComboOpen}
                       className="w-full justify-between font-normal"
                     >
                       {form.organizationId
@@ -286,12 +486,10 @@ export default function UsersPage() {
                             value="__none__"
                             onSelect={() => {
                               setForm((prev) => prev ? { ...prev, organizationId: null } : prev);
-                              setComboOpen(false);
+                              setEditComboOpen(false);
                             }}
                           >
-                            <Check
-                              className={cn('mr-2 h-4 w-4', form.organizationId === null ? 'opacity-100' : 'opacity-0')}
-                            />
+                            <Check className={cn('mr-2 h-4 w-4', form.organizationId === null ? 'opacity-100' : 'opacity-0')} />
                             Sem organização
                           </CommandItem>
                           {municipalities.map((m) => (
@@ -300,12 +498,10 @@ export default function UsersPage() {
                               value={m.label}
                               onSelect={() => {
                                 setForm((prev) => prev ? { ...prev, organizationId: m.orgId } : prev);
-                                setComboOpen(false);
+                                setEditComboOpen(false);
                               }}
                             >
-                              <Check
-                                className={cn('mr-2 h-4 w-4', form.organizationId === m.orgId ? 'opacity-100' : 'opacity-0')}
-                              />
+                              <Check className={cn('mr-2 h-4 w-4', form.organizationId === m.orgId ? 'opacity-100' : 'opacity-0')} />
                               {m.label}
                             </CommandItem>
                           ))}
@@ -320,7 +516,7 @@ export default function UsersPage() {
                   type="checkbox"
                   id="userActive"
                   checked={form.isActive}
-                  onChange={updateField('isActive')}
+                  onChange={updateEditField('isActive')}
                   className="h-4 w-4"
                 />
                 <Label htmlFor="userActive">Usuário ativo</Label>
@@ -328,7 +524,7 @@ export default function UsersPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setEditing(null); setComboOpen(false); }}>Cancelar</Button>
+            <Button variant="outline" onClick={() => { setEditing(null); setEditComboOpen(false); }}>Cancelar</Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving ? 'Salvando...' : 'Salvar'}
             </Button>

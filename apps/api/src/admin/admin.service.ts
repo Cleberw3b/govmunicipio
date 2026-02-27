@@ -12,6 +12,8 @@ import {
   AddressEntity,
   OrganizationEntity,
   MunicipalityEntity,
+  HospitalEntity,
+  HotelEntity,
   PersonEntity,
   PersonIdentificationEntity,
   PrincipalEntity,
@@ -19,7 +21,14 @@ import {
 } from '../entities';
 import { CreateMunicipalityDto } from './dto/create-municipality.dto';
 import { UpdateMunicipalityDto } from './dto/update-municipality.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { CreateOrganizationDto } from './dto/create-organization.dto';
+import { UpdateOrganizationDto } from './dto/update-organization.dto';
+import { CreateHospitalDto } from './dto/create-hospital.dto';
+import { UpdateHospitalDto } from './dto/update-hospital.dto';
+import { CreateHotelDto } from './dto/create-hotel.dto';
+import { UpdateHotelDto } from './dto/update-hotel.dto';
 
 @Injectable()
 export class AdminService {
@@ -159,6 +168,193 @@ export class AdminService {
     });
   }
 
+  async createUser(dto: CreateUserDto): Promise<PrincipalEntity> {
+    const isSuperAdmin = dto.roles.includes('super_admin');
+
+    if (!isSuperAdmin && (!dto.firstName || !dto.lastName || !dto.cpf)) {
+      throw new BadRequestException('firstName, lastName, and cpf are required for non-super_admin users');
+    }
+
+    const existing = await this.principalRepository.findOne({ where: { username: dto.username } });
+    if (existing) throw new ConflictException(`Username ${dto.username} already exists`);
+
+    const roleEntities = await this.roleRepository.find({
+      where: dto.roles.map((name) => ({ name })),
+    });
+    if (roleEntities.length !== dto.roles.length) {
+      const found = roleEntities.map((r) => r.name);
+      const missing = dto.roles.filter((n) => !found.includes(n));
+      throw new NotFoundException(`Roles not found: ${missing.join(', ')}`);
+    }
+
+    let orgEntity: OrganizationEntity | undefined;
+    if (dto.organizationId) {
+      const org = await this.dataSource
+        .getRepository(OrganizationEntity)
+        .findOne({ where: { id: dto.organizationId } });
+      if (!org) throw new NotFoundException(`Organization ${dto.organizationId} not found`);
+      orgEntity = org;
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    return this.dataSource
+      .transaction(async (manager) => {
+        let person: PersonEntity | undefined;
+        if (!isSuperAdmin) {
+          person = await manager.save(
+            manager.create(PersonEntity, {
+              firstName: dto.firstName,
+              lastName: dto.lastName,
+              gender: Gender.NOT_INFORMED,
+            }),
+          );
+          await manager.save(
+            manager.create(PersonIdentificationEntity, {
+              cpf: dto.cpf,
+              dateOfBirth: '1990-01-01' as unknown as Date,
+              person,
+            }),
+          );
+        }
+
+        const principal = manager.create(PrincipalEntity, {
+          username: dto.username,
+          passwordHash,
+          isActive: true,
+          ...(person ? { person, organization: orgEntity } : {}),
+        });
+        principal.roles = roleEntities;
+        principal.organizations = orgEntity ? [orgEntity] : [];
+        return manager.save(principal);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ConflictException) throw err;
+        if (err instanceof NotFoundException) throw err;
+        if (err instanceof BadRequestException) throw err;
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        ) {
+          throw new ConflictException(`Username ${dto.username} already exists`);
+        }
+        throw err;
+      });
+  }
+
+  async findAllOrganizations(): Promise<OrganizationEntity[]> {
+    return this.dataSource
+      .getRepository(OrganizationEntity)
+      .find({ relations: { address: true }, order: { name: 'ASC' } });
+  }
+
+  async createOrganization(dto: CreateOrganizationDto): Promise<OrganizationEntity> {
+    const existing = await this.dataSource
+      .getRepository(OrganizationEntity)
+      .findOne({ where: { cnpj: dto.cnpj } });
+    if (existing) throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+
+    const hasAddress = dto.city || dto.state || dto.street || dto.number || dto.neighborhood || dto.zipCode;
+
+    return this.dataSource
+      .transaction(async (manager) => {
+        let address: AddressEntity | undefined;
+        if (hasAddress) {
+          address = await manager.save(
+            manager.create(AddressEntity, {
+              city: dto.city ?? '',
+              state: dto.state ?? '',
+              street: dto.street,
+              number: dto.number,
+              neighborhood: dto.neighborhood,
+              zipCode: dto.zipCode,
+            }),
+          );
+        }
+
+        return manager.save(
+          manager.create(OrganizationEntity, {
+            name: dto.name,
+            cnpj: dto.cnpj,
+            isActive: true,
+            ...(address ? { address } : {}),
+          }),
+        );
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ConflictException) throw err;
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        ) {
+          throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+        }
+        throw err;
+      });
+  }
+
+  async updateOrganization(id: string, dto: UpdateOrganizationDto): Promise<OrganizationEntity> {
+    const org = await this.dataSource
+      .getRepository(OrganizationEntity)
+      .findOne({ where: { id }, relations: { address: true } });
+    if (!org) throw new NotFoundException(`Organization ${id} not found`);
+
+    if (dto.cnpj !== undefined) {
+      const conflict = await this.dataSource
+        .getRepository(OrganizationEntity)
+        .findOne({ where: { cnpj: dto.cnpj } });
+      if (conflict && conflict.id !== id) {
+        throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+      }
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const addressFields = ['city', 'state', 'street', 'number', 'neighborhood', 'zipCode'] as const;
+      const hasAddressUpdates = addressFields.some((f) => dto[f] !== undefined);
+
+      if (hasAddressUpdates) {
+        if (org.address) {
+          const addressUpdates: Partial<AddressEntity> = {};
+          if (dto.city !== undefined) addressUpdates.city = dto.city;
+          if (dto.state !== undefined) addressUpdates.state = dto.state;
+          if (dto.street !== undefined) addressUpdates.street = dto.street;
+          if (dto.number !== undefined) addressUpdates.number = dto.number;
+          if (dto.neighborhood !== undefined) addressUpdates.neighborhood = dto.neighborhood;
+          if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
+          await manager.update(AddressEntity, { id: org.address.id }, addressUpdates);
+        } else {
+          const address = await manager.save(
+            manager.create(AddressEntity, {
+              city: dto.city ?? '',
+              state: dto.state ?? '',
+              street: dto.street,
+              number: dto.number,
+              neighborhood: dto.neighborhood,
+              zipCode: dto.zipCode,
+            }),
+          );
+          await manager.update(OrganizationEntity, { id }, { address });
+        }
+      }
+
+      const orgUpdates: Partial<OrganizationEntity> = {};
+      if (dto.name !== undefined) orgUpdates.name = dto.name;
+      if (dto.cnpj !== undefined) orgUpdates.cnpj = dto.cnpj;
+      if (dto.isActive !== undefined) orgUpdates.isActive = dto.isActive;
+      if (Object.keys(orgUpdates).length > 0) {
+        await manager.update(OrganizationEntity, { id }, orgUpdates);
+      }
+    });
+
+    return this.dataSource
+      .getRepository(OrganizationEntity)
+      .findOne({ where: { id }, relations: { address: true } }) as Promise<OrganizationEntity>;
+  }
+
   async updateUser(id: string, dto: UpdateUserDto): Promise<PrincipalEntity> {
     const principal = await this.principalRepository.findOne({
       where: { id },
@@ -166,29 +362,34 @@ export class AdminService {
     });
     if (!principal) throw new NotFoundException(`User ${id} not found`);
 
-    if (!principal.person) {
+    const personFieldsRequested =
+      dto.firstName !== undefined || dto.lastName !== undefined || dto.cpf !== undefined;
+
+    if (!principal.person && personFieldsRequested) {
       throw new BadRequestException(`User ${id} has no associated person record`);
     }
 
     const person = principal.person;
 
     await this.dataSource.transaction(async (manager) => {
-      const personUpdates: Partial<PersonEntity> = {};
-      if (dto.firstName !== undefined) personUpdates.firstName = dto.firstName;
-      if (dto.lastName !== undefined) personUpdates.lastName = dto.lastName;
-      if (Object.keys(personUpdates).length > 0) {
-        await manager.update(PersonEntity, { id: person.id }, personUpdates);
-      }
-
-      if (dto.cpf !== undefined) {
-        if (!person.identification) {
-          throw new BadRequestException(`User ${id} has no identification record`);
+      if (person) {
+        const personUpdates: Partial<PersonEntity> = {};
+        if (dto.firstName !== undefined) personUpdates.firstName = dto.firstName;
+        if (dto.lastName !== undefined) personUpdates.lastName = dto.lastName;
+        if (Object.keys(personUpdates).length > 0) {
+          await manager.update(PersonEntity, { id: person.id }, personUpdates);
         }
-        await manager.update(
-          PersonIdentificationEntity,
-          { id: person.identification.id },
-          { cpf: dto.cpf },
-        );
+
+        if (dto.cpf !== undefined) {
+          if (!person.identification) {
+            throw new BadRequestException(`User ${id} has no identification record`);
+          }
+          await manager.update(
+            PersonIdentificationEntity,
+            { id: person.identification.id },
+            { cpf: dto.cpf },
+          );
+        }
       }
 
       const principalUpdates: Partial<PrincipalEntity> = {};
@@ -246,6 +447,274 @@ export class AdminService {
       where: { id },
       relations: { roles: true, organizations: true, person: { identification: true } },
     }) as Promise<PrincipalEntity>;
+  }
+
+  async findAllHospitals(): Promise<HospitalEntity[]> {
+    return this.dataSource
+      .getRepository(HospitalEntity)
+      .find({ relations: { organization: { address: true } }, order: { createdAt: 'DESC' } });
+  }
+
+  async createHospital(dto: CreateHospitalDto): Promise<HospitalEntity> {
+    const existingOrg = await this.dataSource
+      .getRepository(OrganizationEntity)
+      .findOne({ where: { cnpj: dto.cnpj } });
+    if (existingOrg) throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+
+    const existingHospital = await this.dataSource
+      .getRepository(HospitalEntity)
+      .findOne({ where: { cnesCode: dto.cnesCode } });
+    if (existingHospital) throw new ConflictException(`Hospital with CNES code ${dto.cnesCode} already exists`);
+
+    const hasAddress = dto.city || dto.state || dto.street || dto.number || dto.neighborhood || dto.zipCode;
+
+    return this.dataSource
+      .transaction(async (manager) => {
+        let address: AddressEntity | undefined;
+        if (hasAddress) {
+          address = await manager.save(
+            manager.create(AddressEntity, {
+              city: dto.city ?? '',
+              state: dto.state ?? '',
+              street: dto.street,
+              number: dto.number,
+              neighborhood: dto.neighborhood,
+              zipCode: dto.zipCode,
+            }),
+          );
+        }
+
+        const organization = await manager.save(
+          manager.create(OrganizationEntity, {
+            name: dto.name,
+            cnpj: dto.cnpj,
+            isActive: true,
+            ...(address ? { address } : {}),
+          }),
+        );
+
+        return manager.save(
+          manager.create(HospitalEntity, { cnesCode: dto.cnesCode, organization }),
+        );
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ConflictException) throw err;
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        ) {
+          throw new ConflictException(`Duplicate CNPJ or CNES code`);
+        }
+        throw err;
+      });
+  }
+
+  async updateHospital(id: string, dto: UpdateHospitalDto): Promise<HospitalEntity> {
+    const hospital = await this.dataSource
+      .getRepository(HospitalEntity)
+      .findOne({ where: { id }, relations: { organization: { address: true } } });
+    if (!hospital) throw new NotFoundException(`Hospital ${id} not found`);
+
+    if (dto.cnpj !== undefined) {
+      const conflict = await this.dataSource
+        .getRepository(OrganizationEntity)
+        .findOne({ where: { cnpj: dto.cnpj } });
+      if (conflict && conflict.id !== hospital.organization.id) {
+        throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+      }
+    }
+
+    if (dto.cnesCode !== undefined) {
+      const conflict = await this.dataSource
+        .getRepository(HospitalEntity)
+        .findOne({ where: { cnesCode: dto.cnesCode } });
+      if (conflict && conflict.id !== id) {
+        throw new ConflictException(`Hospital with CNES code ${dto.cnesCode} already exists`);
+      }
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const addressFields = ['city', 'state', 'street', 'number', 'neighborhood', 'zipCode'] as const;
+      const hasAddressUpdates = addressFields.some((f) => dto[f] !== undefined);
+
+      if (hasAddressUpdates) {
+        if (hospital.organization.address) {
+          const addressUpdates: Partial<AddressEntity> = {};
+          if (dto.city !== undefined) addressUpdates.city = dto.city;
+          if (dto.state !== undefined) addressUpdates.state = dto.state;
+          if (dto.street !== undefined) addressUpdates.street = dto.street;
+          if (dto.number !== undefined) addressUpdates.number = dto.number;
+          if (dto.neighborhood !== undefined) addressUpdates.neighborhood = dto.neighborhood;
+          if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
+          await manager.update(AddressEntity, { id: hospital.organization.address.id }, addressUpdates);
+        } else {
+          const address = await manager.save(
+            manager.create(AddressEntity, {
+              city: dto.city ?? '',
+              state: dto.state ?? '',
+              street: dto.street,
+              number: dto.number,
+              neighborhood: dto.neighborhood,
+              zipCode: dto.zipCode,
+            }),
+          );
+          await manager.update(OrganizationEntity, { id: hospital.organization.id }, { address });
+        }
+      }
+
+      const orgUpdates: Partial<OrganizationEntity> = {};
+      if (dto.name !== undefined) orgUpdates.name = dto.name;
+      if (dto.cnpj !== undefined) orgUpdates.cnpj = dto.cnpj;
+      if (dto.isActive !== undefined) orgUpdates.isActive = dto.isActive;
+      if (Object.keys(orgUpdates).length > 0) {
+        await manager.update(OrganizationEntity, { id: hospital.organization.id }, orgUpdates);
+      }
+
+      if (dto.cnesCode !== undefined) {
+        await manager.update(HospitalEntity, { id }, { cnesCode: dto.cnesCode });
+      }
+    });
+
+    return this.dataSource
+      .getRepository(HospitalEntity)
+      .findOne({ where: { id }, relations: { organization: { address: true } } }) as Promise<HospitalEntity>;
+  }
+
+  async findAllHotels(): Promise<HotelEntity[]> {
+    return this.dataSource
+      .getRepository(HotelEntity)
+      .find({
+        relations: { organization: { address: true }, municipality: { organization: true } },
+        order: { createdAt: 'DESC' },
+      });
+  }
+
+  async createHotel(dto: CreateHotelDto): Promise<HotelEntity> {
+    const existingOrg = await this.dataSource
+      .getRepository(OrganizationEntity)
+      .findOne({ where: { cnpj: dto.cnpj } });
+    if (existingOrg) throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+
+    let municipality: MunicipalityEntity | null = null;
+    if (dto.municipalityId) {
+      municipality = await this.municipalityRepository.findOne({ where: { id: dto.municipalityId } }) ?? null;
+      if (!municipality) throw new NotFoundException(`Municipality ${dto.municipalityId} not found`);
+    }
+
+    const hasAddress = dto.city || dto.state || dto.street || dto.number || dto.neighborhood || dto.zipCode;
+
+    return this.dataSource
+      .transaction(async (manager) => {
+        let address: AddressEntity | undefined;
+        if (hasAddress) {
+          address = await manager.save(
+            manager.create(AddressEntity, {
+              city: dto.city ?? '',
+              state: dto.state ?? '',
+              street: dto.street,
+              number: dto.number,
+              neighborhood: dto.neighborhood,
+              zipCode: dto.zipCode,
+            }),
+          );
+        }
+
+        const organization = await manager.save(
+          manager.create(OrganizationEntity, {
+            name: dto.name,
+            cnpj: dto.cnpj,
+            isActive: true,
+            ...(address ? { address } : {}),
+          }),
+        );
+
+        return manager.save(
+          manager.create(HotelEntity, { organization, municipality }),
+        );
+      })
+      .catch((err: unknown) => {
+        if (err instanceof ConflictException) throw err;
+        if (err instanceof NotFoundException) throw err;
+        if (
+          typeof err === 'object' &&
+          err !== null &&
+          'code' in err &&
+          (err as { code: string }).code === '23505'
+        ) {
+          throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+        }
+        throw err;
+      });
+  }
+
+  async updateHotel(id: string, dto: UpdateHotelDto): Promise<HotelEntity> {
+    const hotel = await this.dataSource
+      .getRepository(HotelEntity)
+      .findOne({ where: { id }, relations: { organization: { address: true }, municipality: true } });
+    if (!hotel) throw new NotFoundException(`Hotel ${id} not found`);
+
+    if (dto.cnpj !== undefined) {
+      const conflict = await this.dataSource
+        .getRepository(OrganizationEntity)
+        .findOne({ where: { cnpj: dto.cnpj } });
+      if (conflict && conflict.id !== hotel.organization.id) {
+        throw new ConflictException(`Organization with CNPJ ${dto.cnpj} already exists`);
+      }
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      const addressFields = ['city', 'state', 'street', 'number', 'neighborhood', 'zipCode'] as const;
+      const hasAddressUpdates = addressFields.some((f) => dto[f] !== undefined);
+
+      if (hasAddressUpdates) {
+        if (hotel.organization.address) {
+          const addressUpdates: Partial<AddressEntity> = {};
+          if (dto.city !== undefined) addressUpdates.city = dto.city;
+          if (dto.state !== undefined) addressUpdates.state = dto.state;
+          if (dto.street !== undefined) addressUpdates.street = dto.street;
+          if (dto.number !== undefined) addressUpdates.number = dto.number;
+          if (dto.neighborhood !== undefined) addressUpdates.neighborhood = dto.neighborhood;
+          if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
+          await manager.update(AddressEntity, { id: hotel.organization.address.id }, addressUpdates);
+        } else {
+          const address = await manager.save(
+            manager.create(AddressEntity, {
+              city: dto.city ?? '',
+              state: dto.state ?? '',
+              street: dto.street,
+              number: dto.number,
+              neighborhood: dto.neighborhood,
+              zipCode: dto.zipCode,
+            }),
+          );
+          await manager.update(OrganizationEntity, { id: hotel.organization.id }, { address });
+        }
+      }
+
+      const orgUpdates: Partial<OrganizationEntity> = {};
+      if (dto.name !== undefined) orgUpdates.name = dto.name;
+      if (dto.cnpj !== undefined) orgUpdates.cnpj = dto.cnpj;
+      if (dto.isActive !== undefined) orgUpdates.isActive = dto.isActive;
+      if (Object.keys(orgUpdates).length > 0) {
+        await manager.update(OrganizationEntity, { id: hotel.organization.id }, orgUpdates);
+      }
+
+      if (dto.municipalityId !== undefined) {
+        if (dto.municipalityId === null) {
+          await manager.update(HotelEntity, { id }, { municipality: null });
+        } else {
+          const mun = await manager.findOne(MunicipalityEntity, { where: { id: dto.municipalityId } });
+          if (!mun) throw new NotFoundException(`Municipality ${dto.municipalityId} not found`);
+          await manager.update(HotelEntity, { id }, { municipality: mun });
+        }
+      }
+    });
+
+    return this.dataSource
+      .getRepository(HotelEntity)
+      .findOne({ where: { id }, relations: { organization: { address: true }, municipality: { organization: true } } }) as Promise<HotelEntity>;
   }
 
   async updateMunicipality(
