@@ -7,6 +7,7 @@ import { HotelEntity } from './hotel.entity';
 import { MunicipalityEntity } from './municipality.entity';
 import { PrincipalEntity } from './principal.entity';
 import { StatusEntity } from './status.entity';
+import { SpecialtyEntity } from './specialty.entity';
 
 @Entity('tfd_request')
 export class TfdRequestEntity extends BaseEntity {
@@ -88,6 +89,10 @@ export class TfdRequestEntity extends BaseEntity {
   @ManyToOne(() => HospitalEntity, { nullable: true })
   @JoinColumn({ name: 'destination_hospital_id' })
   destinationHospital!: HospitalEntity | null;
+
+  @ManyToOne(() => SpecialtyEntity, { nullable: true })
+  @JoinColumn({ name: 'specialty_id' })
+  specialty!: SpecialtyEntity | null;
 
   @ManyToOne(() => HotelEntity, { nullable: true })
   @JoinColumn({ name: 'hotel_id' })

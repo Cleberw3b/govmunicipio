@@ -49,7 +49,8 @@ export class TfdService {
       patientPerson: { identification: true },
       companionPerson: true,
       requestingDoctor: { person: true },
-      destinationHospital: { organization: true },
+      destinationHospital: { organization: true, specialties: true },
+      specialty: true,
       hotel: true,
       municipality: true,
       status: true,
@@ -180,6 +181,9 @@ export class TfdService {
     }
     if (dto.destinationHospitalId !== undefined) {
       tfdRequest.destinationHospital = { id: dto.destinationHospitalId } as any;
+    }
+    if (dto.specialtyId !== undefined) {
+      tfdRequest.specialty = dto.specialtyId ? ({ id: dto.specialtyId } as any) : null;
     }
     if (dto.hotelId !== undefined) {
       tfdRequest.hotel = dto.hotelId ? ({ id: dto.hotelId } as any) : null;

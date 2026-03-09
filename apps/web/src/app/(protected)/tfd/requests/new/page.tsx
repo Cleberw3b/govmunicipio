@@ -150,6 +150,7 @@ interface FormData {
   doctorInfo: DoctorResult | null;
   destinationHospitalId: string;
   hospitalInfo: HospitalResult | null;
+  specialtyId: string;
   diagnosisCid: string;
   procedureDescription: string;
   justification: string;
@@ -203,6 +204,7 @@ const INITIAL_FORM_DATA: FormData = {
   doctorInfo: null,
   destinationHospitalId: '',
   hospitalInfo: null,
+  specialtyId: '',
   diagnosisCid: '',
   procedureDescription: '',
   justification: '',
@@ -1388,6 +1390,25 @@ function ClinicalDataStep({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {formData.hospitalInfo?.specialties && formData.hospitalInfo.specialties.length > 0 && (
+          <div className="space-y-2">
+            <Label>Especialidade</Label>
+            <Select
+              value={formData.specialtyId}
+              onValueChange={(v) => onChange({ specialtyId: v })}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione a especialidade" />
+              </SelectTrigger>
+              <SelectContent>
+                {formData.hospitalInfo.specialties.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label>Código CID-10 *</Label>
           <Input
@@ -1742,6 +1763,7 @@ interface TfdDraftResponse {
   foodCost?: number | string | null;
   hotelCost?: number | string | null;
   notes?: string | null;
+  specialty?: { id: string; name: string } | null;
 }
 
 function getResumeStep(draft: TfdDraftResponse): number {
@@ -1789,6 +1811,7 @@ export default function NewTfdRequestPage() {
           doctorInfo: draft.requestingDoctor ?? null,
           destinationHospitalId: draft.destinationHospital?.id ?? '',
           hospitalInfo: draft.destinationHospital ?? null,
+          specialtyId: draft.specialty?.id ?? '',
           diagnosisCid: draft.diagnosisCid ?? '',
           procedureDescription: draft.procedureDescription ?? '',
           justification: draft.justification ?? '',
@@ -1845,6 +1868,7 @@ export default function NewTfdRequestPage() {
         return { destinationHospitalId: formData.destinationHospitalId };
       case 4:
         return {
+          specialtyId: formData.specialtyId || null,
           diagnosisCid: formData.diagnosisCid,
           procedureDescription: formData.procedureDescription,
           justification: formData.justification,
