@@ -11,11 +11,13 @@ import {
   Plus,
   Loader2,
   AlertCircle,
+  TrendingUp,
+  Users,
 } from 'lucide-react';
 import { TfdStatus } from '@govmunicipio/shared';
 import { apiClient } from '@/lib/api';
+import { isAdminMunicipality } from '@/lib/admin-auth';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -40,27 +42,17 @@ interface DashboardStats {
   pending: number;
   approved: number;
   thisMonth: number;
+  monthlySpending: number;
+  averagePerPatient: number;
 }
 
 interface TfdRequestListItem {
   id: string;
   protocolNumber: string;
-  statusId: string;
-  requestDate: string;
+  requestDate: string | null;
   createdAt: string;
-  patient?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-  };
-  requestingDoctor?: {
-    id: string;
-    name: string;
-  };
-  destinationHospital?: {
-    id: string;
-    name: string;
-  };
+  status: { id: string; code: string; name: string };
+  patientPerson?: { firstName: string; lastName: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,27 +69,29 @@ const STATUS_LABELS: Record<string, string> = {
   [TfdStatus.CANCELLED]: 'Cancelado',
 };
 
-function getStatusVariant(
-  statusId: string,
-): 'default' | 'secondary' | 'destructive' | 'outline' {
-  switch (statusId) {
+function getStatusClass(code: string): string {
+  switch (code) {
     case TfdStatus.APPROVED:
+      return 'bg-green-100 text-green-800 border-green-200';
     case TfdStatus.COMPLETED:
-      return 'default';
+      return 'bg-blue-100 text-blue-800 border-blue-200';
     case TfdStatus.PENDING:
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     case TfdStatus.SCHEDULED:
-      return 'secondary';
+      return 'bg-purple-100 text-purple-800 border-purple-200';
     case TfdStatus.REJECTED:
+      return 'bg-red-100 text-red-800 border-red-200';
     case TfdStatus.CANCELLED:
-      return 'destructive';
+      return 'bg-gray-100 text-gray-600 border-gray-200';
     default:
-      return 'outline';
+      return 'bg-gray-100 text-gray-600 border-gray-200';
   }
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('pt-BR');
+  const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString();
 }
 
 // ---------------------------------------------------------------------------
@@ -110,12 +104,14 @@ function StatsCard({
   value,
   colorClass,
   loading,
+  currency = false,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: number;
   colorClass: string;
   loading: boolean;
+  currency?: boolean;
 }) {
   return (
     <Card>
@@ -128,6 +124,10 @@ function StatsCard({
       <CardContent>
         {loading ? (
           <div className="h-8 w-20 animate-pulse rounded bg-muted" />
+        ) : currency ? (
+          <p className="text-2xl font-bold">
+            R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </p>
         ) : (
           <p className="text-3xl font-bold">{value}</p>
         )}
@@ -147,7 +147,10 @@ export default function DashboardPage() {
     pending: 0,
     approved: 0,
     thisMonth: 0,
+    monthlySpending: 0,
+    averagePerPatient: 0,
   });
+  const showFinance = isAdminMunicipality();
   const [requests, setRequests] = useState<TfdRequestListItem[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
@@ -227,6 +230,28 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* Finance cards — visible only to admin_municipality */}
+      {showFinance && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <StatsCard
+            icon={TrendingUp}
+            label="Gasto no Mês Atual"
+            value={stats.monthlySpending}
+            colorClass="text-rose-600"
+            loading={loadingStats}
+            currency
+          />
+          <StatsCard
+            icon={Users}
+            label="Média por Paciente (Mês)"
+            value={stats.averagePerPatient}
+            colorClass="text-orange-600"
+            loading={loadingStats}
+            currency
+          />
+        </div>
+      )}
+
       {/* Recent requests */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -272,15 +297,14 @@ export default function DashboardPage() {
                         {request.protocolNumber}
                       </TableCell>
                       <TableCell>
-                        {request.patient
-                          ? `${request.patient.firstName} ${request.patient.lastName}`
+                        {request.patientPerson
+                          ? `${request.patientPerson.firstName} ${request.patientPerson.lastName}`
                           : '-'}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={getStatusVariant(request.statusId)}>
-                          {STATUS_LABELS[request.statusId] ??
-                            request.statusId}
-                        </Badge>
+                        <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getStatusClass(request.status.code)}`}>
+                          {STATUS_LABELS[request.status.code] ?? request.status.name}
+                        </span>
                       </TableCell>
                       <TableCell>
                         {formatDate(request.requestDate)}
