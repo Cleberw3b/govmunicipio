@@ -10,7 +10,9 @@ import {
 } from '@nestjs/common';
 import { TfdService } from './tfd.service';
 import { CreateTfdRequestDto } from './dto/create-tfd-request.dto';
+import { UpdateTfdRequestDto } from './dto/update-tfd-request.dto';
 import { UpdateTfdStatusDto } from './dto/update-tfd-status.dto';
+import { UpdateTfdCostsDto } from './dto/update-tfd-costs.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Permissions } from '../auth/decorators/permissions.decorator';
@@ -25,6 +27,8 @@ interface TfdStats {
   pending: number;
   approved: number;
   thisMonth: number;
+  monthlySpending: number;
+  averagePerPatient: number;
 }
 
 @Controller('tfd/requests')
@@ -69,6 +73,35 @@ export class TfdController {
     @CurrentPrincipal() principal: CurrentPrincipalData,
   ): Promise<TfdRequestEntity> {
     return this.tfdService.findOne(id, principal.organizationId);
+  }
+
+  @Patch(':id')
+  @Permissions('tfd_request:update')
+  async updateDraft(
+    @Param('id') id: string,
+    @Body() dto: UpdateTfdRequestDto,
+    @CurrentPrincipal() principal: CurrentPrincipalData,
+  ): Promise<TfdRequestEntity> {
+    return this.tfdService.updateDraft(id, dto, principal.organizationId);
+  }
+
+  @Post(':id/submit')
+  @Permissions('tfd_request:update')
+  async submit(
+    @Param('id') id: string,
+    @CurrentPrincipal() principal: CurrentPrincipalData,
+  ): Promise<TfdRequestEntity> {
+    return this.tfdService.submit(id, principal.organizationId);
+  }
+
+  @Patch(':id/costs')
+  @Permissions('tfd_request:update')
+  async updateCosts(
+    @Param('id') id: string,
+    @Body() dto: UpdateTfdCostsDto,
+    @CurrentPrincipal() principal: CurrentPrincipalData,
+  ): Promise<TfdRequestEntity> {
+    return this.tfdService.updateCosts(id, dto, principal.organizationId);
   }
 
   @Patch(':id/status')

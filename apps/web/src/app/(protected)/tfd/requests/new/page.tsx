@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import {
   TransportType,
   Gender,
+  ContactType,
   type CreateTfdRequestDto,
 } from '@govmunicipio/shared';
 import { apiClient } from '@/lib/api';
@@ -37,6 +38,59 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 
+function maskBRL(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 13);
+  if (!digits) return '';
+  const padded = digits.padStart(3, '0');
+  const intPart = padded.slice(0, -2).replace(/^0+/, '') || '0';
+  const decPart = padded.slice(-2);
+  const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `R$ ${formatted},${decPart}`;
+}
+
+function parseBRL(masked: string): number | null {
+  if (!masked) return null;
+  const clean = masked.replace(/[R$\s.]/g, '').replace(',', '.');
+  const n = parseFloat(clean);
+  return isNaN(n) ? null : n;
+}
+
+function numToBRL(val: number | string | null | undefined): string {
+  if (val == null || val === '') return '';
+  const n = Number(val);
+  if (isNaN(n)) return '';
+  return maskBRL(Math.round(n * 100).toString());
+}
+
+function maskCpf(raw: string) {
+  const d = raw.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+function maskPhone(raw: string) {
+  const d = raw.replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : '';
+  if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+
+const MONTHS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 120 }, (_, i) => String(CURRENT_YEAR - i));
+const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
+
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -55,17 +109,36 @@ interface PersonResult {
 
 interface DoctorResult {
   id: string;
-  name: string;
   crm: string;
+  person?: {
+    firstName: string;
+    lastName: string;
+    identification?: { cpf: string };
+  };
   specialties?: { id: string; name: string }[];
+}
+
+function doctorDisplayName(d: DoctorResult): string {
+  if (!d.person) return d.crm;
+  return `${d.person.firstName} ${d.person.lastName}`;
 }
 
 interface HospitalResult {
   id: string;
-  name: string;
-  cnes: string;
-  city?: string;
+  cnesCode: string;
+  organization?: {
+    name: string;
+    address?: { city?: string };
+  };
   specialties?: { id: string; name: string }[];
+}
+
+function hospitalDisplayName(h: HospitalResult): string {
+  return h.organization?.name ?? h.cnesCode;
+}
+
+function hospitalCity(h: HospitalResult): string | undefined {
+  return h.organization?.address?.city;
 }
 
 interface FormData {
@@ -85,6 +158,9 @@ interface FormData {
   returnDate: string;
   transportType: TransportType | '';
   estimatedCost: string;
+  transportationCost: string;
+  foodCost: string;
+  hotelCost: string;
   notes: string;
 }
 
@@ -98,6 +174,7 @@ const STEPS = [
   'Médico Solicitante',
   'Hospital Destino',
   'Dados Clínicos',
+  'Viagem',
   'Revisão',
 ];
 
@@ -129,13 +206,108 @@ const INITIAL_FORM_DATA: FormData = {
   diagnosisCid: '',
   procedureDescription: '',
   justification: '',
-  requestDate: '',
-  travelDate: '',
-  returnDate: '',
+  requestDate: todayISO(),
+  travelDate: todayISO(),
+  returnDate: todayISO(),
   transportType: '',
   estimatedCost: '',
+  transportationCost: '',
+  foodCost: '',
+  hotelCost: '',
   notes: '',
 };
+
+function fmtDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '-';
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString();
+}
+
+// ---------------------------------------------------------------------------
+// Date select (day / month / year in pt-BR)
+// ---------------------------------------------------------------------------
+
+function DateSelect({
+  value,
+  onChange,
+  future = false,
+}: {
+  value: string; // YYYY-MM-DD or ''
+  onChange: (v: string) => void;
+  future?: boolean;
+}) {
+  const fromValue = value ? value.split('-') : ['', '', ''];
+  const [y, setY] = useState(fromValue[0]);
+  const [m, setM] = useState(fromValue[1]);
+  const [d, setD] = useState(fromValue[2]);
+
+  useEffect(() => {
+    const parts = value ? value.split('-') : ['', '', ''];
+    setY(parts[0]);
+    setM(parts[1]);
+    setD(parts[2]);
+  }, [value]);
+
+  const emit = (newY: string, newM: string, newD: string) => {
+    if (newY && newM && newD) onChange(`${newY}-${newM}-${newD}`);
+    else onChange('');
+  };
+
+  const today = new Date();
+  const todayY = String(today.getFullYear());
+  const todayM = String(today.getMonth() + 1).padStart(2, '0');
+  const todayD = String(today.getDate()).padStart(2, '0');
+
+  const availableYears = future
+    ? YEARS.filter((yr) => yr >= todayY)
+    : YEARS;
+
+  const availableMonths = MONTHS.map((name, i) => ({
+    name,
+    value: String(i + 1).padStart(2, '0'),
+  })).filter(({ value: mv }) =>
+    future && y === todayY ? mv >= todayM : true
+  );
+
+  const availableDays = DAYS.filter((day) =>
+    future && y === todayY && m === todayM ? day >= todayD : true
+  );
+
+  return (
+    <div className="flex gap-1">
+      <Select value={d} onValueChange={(day) => { setD(day); emit(y, m, day); }}>
+        <SelectTrigger className="w-[72px]">
+          <SelectValue placeholder="Dia" />
+        </SelectTrigger>
+        <SelectContent>
+          {availableDays.map((day) => (
+            <SelectItem key={day} value={day}>{day}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={m} onValueChange={(month) => { setM(month); emit(y, month, d); }}>
+        <SelectTrigger className="flex-1">
+          <SelectValue placeholder="Mês" />
+        </SelectTrigger>
+        <SelectContent>
+          {availableMonths.map(({ name, value: mv }) => (
+            <SelectItem key={mv} value={mv}>{name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={y} onValueChange={(year) => { setY(year); emit(year, m, d); }}>
+        <SelectTrigger className="w-[90px]">
+          <SelectValue placeholder="Ano" />
+        </SelectTrigger>
+        <SelectContent>
+          {availableYears.map((year) => (
+            <SelectItem key={year} value={year}>{year}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Step indicator
@@ -218,6 +390,13 @@ function PersonSearchStep({
   const [susCardNumber, setSusCardNumber] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [phone, setPhone] = useState('');
+  const [street, setStreet] = useState('');
+  const [addressNumber, setAddressNumber] = useState('');
+  const [complement, setComplement] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('');
+  const [addressState, setAddressState] = useState('');
+  const [zipCode, setZipCode] = useState('');
   const [creating, setCreating] = useState(false);
 
   const handleSearch = async () => {
@@ -254,7 +433,21 @@ function PersonSearchStep({
           cpf: cpf.replace(/\D/g, ''),
           susCardNumber: susCardNumber.replace(/\D/g, '') || undefined,
           dateOfBirth,
-          phone: phone || undefined,
+          contacts: phone
+            ? [{ type: ContactType.PHONE, value: phone.replace(/\D/g, '') }]
+            : undefined,
+          address:
+            street && addressNumber && neighborhood && city && addressState && zipCode
+              ? {
+                  street,
+                  number: addressNumber,
+                  complement: complement || undefined,
+                  neighborhood,
+                  city,
+                  state: addressState,
+                  zipCode: zipCode.replace(/\D/g, ''),
+                }
+              : undefined,
         }),
       });
       onSelect(person);
@@ -293,9 +486,7 @@ function PersonSearchStep({
           {selectedPerson.identification?.dateOfBirth && (
             <p>
               <strong>Data de Nascimento:</strong>{' '}
-              {new Date(
-                selectedPerson.identification.dateOfBirth,
-              ).toLocaleDateString('pt-BR')}
+              {fmtDate(selectedPerson.identification.dateOfBirth)}
             </p>
           )}
           <Button
@@ -385,6 +576,16 @@ function PersonSearchStep({
               </Button>
             </div>
           )}
+
+          {!showCreateForm && !(searchDone && !foundPerson) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowCreateForm(true)}
+            >
+              + Cadastrar nova pessoa
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -431,7 +632,7 @@ function PersonSearchStep({
                 <Input
                   placeholder="000.000.000-00"
                   value={cpf}
-                  onChange={(e) => setCpf(e.target.value)}
+                  onChange={(e) => setCpf(maskCpf(e.target.value))}
                 />
               </div>
               <div className="space-y-2">
@@ -444,21 +645,128 @@ function PersonSearchStep({
               </div>
               <div className="space-y-2">
                 <Label>Data de Nascimento</Label>
-                <Input
-                  type="date"
-                  value={dateOfBirth}
-                  onChange={(e) => setDateOfBirth(e.target.value)}
-                />
+                <div className="flex gap-1">
+                  <Select
+                    value={dateOfBirth ? dateOfBirth.split('-')[2] : ''}
+                    onValueChange={(day) => {
+                      const [y, m] = dateOfBirth ? dateOfBirth.split('-') : [String(CURRENT_YEAR), '01'];
+                      setDateOfBirth(`${y || CURRENT_YEAR}-${m || '01'}-${day}`);
+                    }}
+                  >
+                    <SelectTrigger className="w-[72px]">
+                      <SelectValue placeholder="Dia" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DAYS.map((d) => (
+                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={dateOfBirth ? dateOfBirth.split('-')[1] : ''}
+                    onValueChange={(month) => {
+                      const [y, , d] = dateOfBirth ? dateOfBirth.split('-') : [String(CURRENT_YEAR), '', '01'];
+                      setDateOfBirth(`${y || CURRENT_YEAR}-${month}-${d || '01'}`);
+                    }}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Mês" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((name, i) => (
+                        <SelectItem key={i} value={String(i + 1).padStart(2, '0')}>{name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={dateOfBirth ? dateOfBirth.split('-')[0] : ''}
+                    onValueChange={(year) => {
+                      const [, m, d] = dateOfBirth ? dateOfBirth.split('-') : ['', '01', '01'];
+                      setDateOfBirth(`${year}-${m || '01'}-${d || '01'}`);
+                    }}
+                  >
+                    <SelectTrigger className="w-[88px]">
+                      <SelectValue placeholder="Ano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {YEARS.map((y) => (
+                        <SelectItem key={y} value={y}>{y}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Telefone</Label>
                 <Input
                   placeholder="(00) 00000-0000"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(maskPhone(e.target.value))}
                 />
               </div>
             </div>
+
+            <p className="text-sm font-medium text-muted-foreground pt-2">Endereço <span className="font-normal">(opcional)</span></p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Rua / Logradouro</Label>
+                <Input
+                  placeholder="Nome da rua"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Número</Label>
+                <Input
+                  placeholder="Nº"
+                  value={addressNumber}
+                  onChange={(e) => setAddressNumber(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Complemento</Label>
+                <Input
+                  placeholder="Apto, bloco… (opcional)"
+                  value={complement}
+                  onChange={(e) => setComplement(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Bairro</Label>
+                <Input
+                  placeholder="Bairro"
+                  value={neighborhood}
+                  onChange={(e) => setNeighborhood(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Cidade</Label>
+                <Input
+                  placeholder="Cidade"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Estado (UF)</Label>
+                <Input
+                  placeholder="SP"
+                  maxLength={2}
+                  value={addressState}
+                  onChange={(e) => setAddressState(e.target.value.toUpperCase())}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>CEP</Label>
+                <Input
+                  placeholder="00000-000"
+                  value={zipCode}
+                  onChange={(e) => setZipCode(e.target.value)}
+                />
+              </div>
+            </div>
+
             <Button
               onClick={handleCreate}
               disabled={
@@ -475,9 +783,17 @@ function PersonSearchStep({
   );
 }
 
+
 // ---------------------------------------------------------------------------
 // Step 2 - Doctor selection
 // ---------------------------------------------------------------------------
+
+const GENDER_LABELS_DOCTOR: Record<string, string> = {
+  male: 'Masculino',
+  female: 'Feminino',
+  other: 'Outro',
+  not_informed: 'Não informado',
+};
 
 function DoctorStep({
   selectedDoctor,
@@ -489,6 +805,16 @@ function DoctorStep({
   const [doctors, setDoctors] = useState<DoctorResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
+  // create form state
+  const [crm, setCrm] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [gender, setGender] = useState('');
+  const [cpf, setCpf] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     apiClient<DoctorResult[]>('/doctors')
@@ -497,11 +823,41 @@ function DoctorStep({
       .finally(() => setLoading(false));
   }, []);
 
-  const filtered = doctors.filter(
-    (d) =>
-      d.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      d.crm.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const filtered = doctors.filter((d) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      d.crm.toLowerCase().includes(term) ||
+      (d.person?.firstName ?? '').toLowerCase().includes(term) ||
+      (d.person?.lastName ?? '').toLowerCase().includes(term)
+    );
+  });
+
+  const handleCreate = async () => {
+    setCreating(true);
+    try {
+      const doctor = await apiClient<DoctorResult>('/doctors', {
+        method: 'POST',
+        body: JSON.stringify({
+          crm: crm.trim(),
+          firstName,
+          lastName,
+          gender,
+          cpf: cpf.replace(/\D/g, ''),
+          dateOfBirth,
+        }),
+      });
+      setDoctors((prev) => [...prev, doctor]);
+      onSelect(doctor);
+      toast.success('Médico cadastrado com sucesso!');
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Erro ao cadastrar médico.',
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
 
   if (selectedDoctor) {
     return (
@@ -511,7 +867,7 @@ function DoctorStep({
         </CardHeader>
         <CardContent className="space-y-1 text-sm">
           <p>
-            <strong>Nome:</strong> {selectedDoctor.name}
+            <strong>Nome:</strong> {doctorDisplayName(selectedDoctor)}
           </p>
           <p>
             <strong>CRM:</strong> {selectedDoctor.crm}
@@ -536,58 +892,205 @@ function DoctorStep({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Selecionar Médico Solicitante</CardTitle>
-        <CardDescription>
-          Busque pelo nome ou CRM do médico
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Input
-          placeholder="Buscar por nome ou CRM..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Selecionar Médico Solicitante</CardTitle>
+          <CardDescription>Busque pelo CRM ou nome do médico</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Input
+            placeholder="Buscar por CRM ou nome..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
 
-        {loading ? (
-          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Carregando médicos...
-          </div>
-        ) : filtered.length === 0 ? (
-          <p className="py-4 text-sm text-muted-foreground">
-            Nenhum médico encontrado.
-          </p>
-        ) : (
-          <div className="max-h-80 space-y-2 overflow-y-auto">
-            {filtered.map((doctor) => (
-              <div
-                key={doctor.id}
-                className="flex cursor-pointer items-center justify-between rounded-md border p-3 hover:bg-accent"
-                onClick={() => onSelect(doctor)}
+          {loading ? (
+            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando médicos...
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-md border border-dashed p-4 text-center space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Nenhum médico encontrado.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowCreateForm(true);
+                  setCrm(searchTerm.trim());
+                }}
               >
-                <div>
-                  <p className="font-medium">{doctor.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    CRM: {doctor.crm}
-                    {doctor.specialties &&
-                      doctor.specialties.length > 0 &&
-                      ` • ${doctor.specialties.map((s) => s.name).join(', ')}`}
-                  </p>
+                Cadastrar médico
+              </Button>
+            </div>
+          ) : (
+            <div className="max-h-80 space-y-2 overflow-y-auto">
+              {filtered.map((d) => (
+                <div
+                  key={d.id}
+                  className="flex cursor-pointer items-center justify-between rounded-md border p-3 hover:bg-accent"
+                  onClick={() => onSelect(d)}
+                >
+                  <div>
+                    <p className="font-medium">{doctorDisplayName(d)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      CRM: {d.crm}
+                      {d.specialties && d.specialties.length > 0 &&
+                        ` • ${d.specialties.map((s) => s.name).join(', ')}`}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {!loading && filtered.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowCreateForm((v) => !v);
+                setCrm(searchTerm.trim());
+              }}
+            >
+              + Cadastrar novo médico
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {showCreateForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Cadastrar Médico</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>CRM</Label>
+                <Input
+                  placeholder="Ex: 12345-BA"
+                  value={crm}
+                  onChange={(e) => setCrm(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Nome</Label>
+                <Input
+                  placeholder="Nome"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Sobrenome</Label>
+                <Input
+                  placeholder="Sobrenome"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Sexo</Label>
+                <Select value={gender} onValueChange={setGender}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(GENDER_LABELS_DOCTOR).map(([value, lbl]) => (
+                      <SelectItem key={value} value={value}>{lbl}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>CPF</Label>
+                <Input
+                  placeholder="000.000.000-00"
+                  value={cpf}
+                  onChange={(e) => setCpf(maskCpf(e.target.value))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Data de Nascimento</Label>
+                <div className="flex gap-1">
+                  <Select
+                    value={dateOfBirth ? dateOfBirth.split('-')[2] : ''}
+                    onValueChange={(day) => {
+                      const [y, m] = dateOfBirth ? dateOfBirth.split('-') : [String(CURRENT_YEAR), '01'];
+                      setDateOfBirth(`${y || CURRENT_YEAR}-${m || '01'}-${day}`);
+                    }}
+                  >
+                    <SelectTrigger className="w-[72px]">
+                      <SelectValue placeholder="Dia" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DAYS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={dateOfBirth ? dateOfBirth.split('-')[1] : ''}
+                    onValueChange={(month) => {
+                      const [y, , d] = dateOfBirth ? dateOfBirth.split('-') : [String(CURRENT_YEAR), '', '01'];
+                      setDateOfBirth(`${y || CURRENT_YEAR}-${month}-${d || '01'}`);
+                    }}
+                  >
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Mês" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((name, i) => (
+                        <SelectItem key={i} value={String(i + 1).padStart(2, '0')}>{name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select
+                    value={dateOfBirth ? dateOfBirth.split('-')[0] : ''}
+                    onValueChange={(year) => {
+                      const [, m, d] = dateOfBirth ? dateOfBirth.split('-') : ['', '01', '01'];
+                      setDateOfBirth(`${year}-${m || '01'}-${d || '01'}`);
+                    }}
+                  >
+                    <SelectTrigger className="w-[88px]">
+                      <SelectValue placeholder="Ano" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {YEARS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+            </div>
+            <Button
+              onClick={handleCreate}
+              disabled={creating || !crm || !firstName || !lastName || !gender || !cpf || !dateOfBirth}
+            >
+              {creating && <Loader2 className="h-4 w-4 animate-spin" />}
+              Cadastrar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // Step 3 - Hospital selection
 // ---------------------------------------------------------------------------
+
+function maskCnpj(raw: string) {
+  const d = raw.replace(/\D/g, '').slice(0, 14);
+  if (d.length <= 2) return d;
+  if (d.length <= 5) return `${d.slice(0, 2)}.${d.slice(2)}`;
+  if (d.length <= 8) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5)}`;
+  if (d.length <= 12) return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8)}`;
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12)}`;
+}
 
 function HospitalStep({
   selectedHospital,
@@ -599,6 +1102,19 @@ function HospitalStep({
   const [hospitals, setHospitals] = useState<HospitalResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
+  // create form state
+  const [hospName, setHospName] = useState('');
+  const [cnpj, setCnpj] = useState('');
+  const [cnesCode, setCnesCode] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [street, setStreet] = useState('');
+  const [addressNumber, setAddressNumber] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
+  const [zipCode, setZipCode] = useState('');
+  const [creating, setCreating] = useState(false);
 
   useEffect(() => {
     apiClient<HospitalResult[]>('/hospitals')
@@ -609,10 +1125,39 @@ function HospitalStep({
 
   const filtered = hospitals.filter(
     (h) =>
-      h.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      h.cnes.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (h.city && h.city.toLowerCase().includes(searchTerm.toLowerCase())),
+      hospitalDisplayName(h).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (h.cnesCode ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (hospitalCity(h) ?? '').toLowerCase().includes(searchTerm.toLowerCase()),
   );
+
+  const handleCreate = async () => {
+    setCreating(true);
+    try {
+      const hospital = await apiClient<HospitalResult>('/municipality/hospitals', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: hospName.trim(),
+          cnpj: cnpj.replace(/\D/g, '').replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5'),
+          cnesCode: cnesCode.trim(),
+          city: city.trim() || undefined,
+          state: state.trim() || undefined,
+          street: street.trim() || undefined,
+          number: addressNumber.trim() || undefined,
+          neighborhood: neighborhood.trim() || undefined,
+          zipCode: zipCode.replace(/\D/g, '') || undefined,
+        }),
+      });
+      setHospitals((prev) => [...prev, hospital]);
+      onSelect(hospital);
+      toast.success('Hospital cadastrado com sucesso!');
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Erro ao cadastrar hospital.',
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
 
   if (selectedHospital) {
     return (
@@ -622,14 +1167,14 @@ function HospitalStep({
         </CardHeader>
         <CardContent className="space-y-1 text-sm">
           <p>
-            <strong>Nome:</strong> {selectedHospital.name}
+            <strong>Nome:</strong> {hospitalDisplayName(selectedHospital)}
           </p>
           <p>
-            <strong>CNES:</strong> {selectedHospital.cnes}
+            <strong>CNES:</strong> {selectedHospital.cnesCode}
           </p>
-          {selectedHospital.city && (
+          {hospitalCity(selectedHospital) && (
             <p>
-              <strong>Cidade:</strong> {selectedHospital.city}
+              <strong>Cidade:</strong> {hospitalCity(selectedHospital)}
             </p>
           )}
           {selectedHospital.specialties &&
@@ -653,55 +1198,175 @@ function HospitalStep({
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Selecionar Hospital Destino</CardTitle>
-        <CardDescription>
-          Busque pelo nome, CNES ou cidade do hospital
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Input
-          placeholder="Buscar por nome, CNES ou cidade..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Selecionar Hospital Destino</CardTitle>
+          <CardDescription>
+            Busque pelo nome, CNES ou cidade do hospital
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Input
+            placeholder="Buscar por nome, CNES ou cidade..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
 
-        {loading ? (
-          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Carregando hospitais...
-          </div>
-        ) : filtered.length === 0 ? (
-          <p className="py-4 text-sm text-muted-foreground">
-            Nenhum hospital encontrado.
-          </p>
-        ) : (
-          <div className="max-h-80 space-y-2 overflow-y-auto">
-            {filtered.map((hospital) => (
-              <div
-                key={hospital.id}
-                className="flex cursor-pointer items-center justify-between rounded-md border p-3 hover:bg-accent"
-                onClick={() => onSelect(hospital)}
+          {loading ? (
+            <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Carregando hospitais...
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="rounded-md border border-dashed p-4 text-center space-y-2">
+              <p className="text-sm text-muted-foreground">
+                Nenhum hospital encontrado.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShowCreateForm(true);
+                  setCnesCode(searchTerm.trim());
+                }}
               >
-                <div>
-                  <p className="font-medium">{hospital.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    CNES: {hospital.cnes}
-                    {hospital.city && ` • ${hospital.city}`}
-                    {hospital.specialties &&
-                      hospital.specialties.length > 0 &&
-                      ` • ${hospital.specialties.map((s) => s.name).join(', ')}`}
-                  </p>
+                Cadastrar hospital
+              </Button>
+            </div>
+          ) : (
+            <div className="max-h-80 space-y-2 overflow-y-auto">
+              {filtered.map((hospital) => (
+                <div
+                  key={hospital.id}
+                  className="flex cursor-pointer items-center justify-between rounded-md border p-3 hover:bg-accent"
+                  onClick={() => onSelect(hospital)}
+                >
+                  <div>
+                    <p className="font-medium">{hospitalDisplayName(hospital)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      CNES: {hospital.cnesCode}
+                      {hospitalCity(hospital) && ` • ${hospitalCity(hospital)}`}
+                      {hospital.specialties &&
+                        hospital.specialties.length > 0 &&
+                        ` • ${hospital.specialties.map((s) => s.name).join(', ')}`}
+                    </p>
+                  </div>
                 </div>
+              ))}
+            </div>
+          )}
+
+          {!loading && filtered.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowCreateForm((v) => !v);
+                setCnesCode(searchTerm.trim());
+              }}
+            >
+              + Cadastrar novo hospital
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {showCreateForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Cadastrar Hospital</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Nome do Hospital *</Label>
+                <Input
+                  placeholder="Nome completo"
+                  value={hospName}
+                  onChange={(e) => setHospName(e.target.value)}
+                />
               </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              <div className="space-y-2">
+                <Label>CNPJ *</Label>
+                <Input
+                  placeholder="00.000.000/0000-00"
+                  value={cnpj}
+                  onChange={(e) => setCnpj(maskCnpj(e.target.value))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Código CNES *</Label>
+                <Input
+                  placeholder="Ex: 2345678"
+                  value={cnesCode}
+                  onChange={(e) => setCnesCode(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Cidade</Label>
+                <Input
+                  placeholder="Cidade"
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Estado (UF)</Label>
+                <Input
+                  placeholder="SP"
+                  maxLength={2}
+                  value={state}
+                  onChange={(e) => setState(e.target.value.toUpperCase())}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Rua / Logradouro</Label>
+                <Input
+                  placeholder="Nome da rua"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Número</Label>
+                <Input
+                  placeholder="Nº"
+                  value={addressNumber}
+                  onChange={(e) => setAddressNumber(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Bairro</Label>
+                <Input
+                  placeholder="Bairro"
+                  value={neighborhood}
+                  onChange={(e) => setNeighborhood(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>CEP</Label>
+                <Input
+                  placeholder="00000-000"
+                  value={zipCode}
+                  onChange={(e) => setZipCode(e.target.value)}
+                />
+              </div>
+            </div>
+            <Button
+              onClick={handleCreate}
+              disabled={creating || !hospName.trim() || cnpj.replace(/\D/g, '').length < 14 || !cnesCode.trim()}
+            >
+              {creating && <Loader2 className="h-4 w-4 animate-spin" />}
+              Cadastrar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
+
 
 // ---------------------------------------------------------------------------
 // Step 4 - Clinical data
@@ -719,27 +1384,17 @@ function ClinicalDataStep({
       <CardHeader>
         <CardTitle>Dados Clínicos</CardTitle>
         <CardDescription>
-          Preencha as informações clínicas da solicitação
+          Diagnóstico, procedimento e justificativa médica
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Código CID-10 *</Label>
-            <Input
-              placeholder="Ex: J45.0"
-              value={formData.diagnosisCid}
-              onChange={(e) => onChange({ diagnosisCid: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Data da Solicitação *</Label>
-            <Input
-              type="date"
-              value={formData.requestDate}
-              onChange={(e) => onChange({ requestDate: e.target.value })}
-            />
-          </div>
+        <div className="space-y-2">
+          <Label>Código CID-10 *</Label>
+          <Input
+            placeholder="Ex: J45.0"
+            value={formData.diagnosisCid}
+            onChange={(e) => onChange({ diagnosisCid: e.target.value })}
+          />
         </div>
 
         <div className="space-y-2">
@@ -748,9 +1403,7 @@ function ClinicalDataStep({
             className="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-20 w-full rounded-md border px-3 py-2 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Descreva o procedimento..."
             value={formData.procedureDescription}
-            onChange={(e) =>
-              onChange({ procedureDescription: e.target.value })
-            }
+            onChange={(e) => onChange({ procedureDescription: e.target.value })}
           />
         </div>
 
@@ -763,71 +1416,143 @@ function ClinicalDataStep({
             onChange={(e) => onChange({ justification: e.target.value })}
           />
         </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Data da Viagem</Label>
-            <Input
-              type="date"
-              value={formData.travelDate}
-              onChange={(e) => onChange({ travelDate: e.target.value })}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Data de Retorno</Label>
-            <Input
-              type="date"
-              value={formData.returnDate}
-              onChange={(e) => onChange({ returnDate: e.target.value })}
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label>Tipo de Transporte *</Label>
-            <Select
-              value={formData.transportType}
-              onValueChange={(value) =>
-                onChange({ transportType: value as TransportType })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Selecione o transporte" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(TRANSPORT_LABELS).map(([value, lbl]) => (
-                  <SelectItem key={value} value={value}>
-                    {lbl}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label>Custo Estimado (R$)</Label>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="0,00"
-              value={formData.estimatedCost}
-              onChange={(e) => onChange({ estimatedCost: e.target.value })}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label>Observações</Label>
-          <textarea
-            className="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-20 w-full rounded-md border px-3 py-2 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-            placeholder="Observações adicionais..."
-            value={formData.notes}
-            onChange={(e) => onChange({ notes: e.target.value })}
-          />
-        </div>
       </CardContent>
     </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Step 5 - Travel & costs
+// ---------------------------------------------------------------------------
+
+function TravelCostsStep({
+  formData,
+  onChange,
+}: {
+  formData: FormData;
+  onChange: (partial: Partial<FormData>) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div>
+              <CardTitle>Viagem</CardTitle>
+              <CardDescription>Datas e transporte da solicitação</CardDescription>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-medium">Data da Solicitação</p>
+              <p className="text-sm text-muted-foreground">
+                {formData.requestDate
+                  ? fmtDate(formData.requestDate)
+                  : '-'}
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Tipo de Transporte *</Label>
+              <Select
+                value={formData.transportType}
+                onValueChange={(value) =>
+                  onChange({ transportType: value as TransportType })
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Selecione o transporte" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(TRANSPORT_LABELS).map(([value, lbl]) => (
+                    <SelectItem key={value} value={value}>
+                      {lbl}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Data da Viagem</Label>
+              <DateSelect
+                value={formData.travelDate}
+                onChange={(v) => onChange({ travelDate: v })}
+                future
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Data de Retorno</Label>
+              <DateSelect
+                value={formData.returnDate}
+                onChange={(v) => onChange({ returnDate: v })}
+                future
+              />
+            </div>
+          </div>
+
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Custos</CardTitle>
+          <CardDescription>
+            Transporte, alimentação e hospedagem cobertos pelo município
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Transporte</Label>
+              <Input
+                placeholder="R$ 0,00"
+                value={formData.transportationCost}
+                onChange={(e) => onChange({ transportationCost: maskBRL(e.target.value) })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Alimentação</Label>
+              <Input
+                placeholder="R$ 0,00"
+                value={formData.foodCost}
+                onChange={(e) => onChange({ foodCost: maskBRL(e.target.value) })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Hospedagem</Label>
+              <Input
+                placeholder="R$ 0,00"
+                value={formData.hotelCost}
+                onChange={(e) => onChange({ hotelCost: maskBRL(e.target.value) })}
+              />
+            </div>
+          </div>
+          {(formData.transportationCost || formData.foodCost || formData.hotelCost) && (
+            <p className="text-sm font-medium text-right">
+              Total: {maskBRL(
+                Math.round(
+                  ((parseBRL(formData.transportationCost) ?? 0) +
+                    (parseBRL(formData.foodCost) ?? 0) +
+                    (parseBRL(formData.hotelCost) ?? 0)) * 100
+                ).toString()
+              )}
+            </p>
+          )}
+
+          <div className="space-y-2">
+            <Label>Observações</Label>
+            <textarea
+              className="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-20 w-full rounded-md border px-3 py-2 text-sm shadow-xs focus-visible:ring-[3px] focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              placeholder="Observações adicionais..."
+              value={formData.notes}
+              onChange={(e) => onChange({ notes: e.target.value })}
+            />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 
@@ -892,7 +1617,7 @@ function ReviewStep({ formData }: { formData: FormData }) {
           {formData.doctorInfo ? (
             <>
               <p>
-                <strong>Nome:</strong> {formData.doctorInfo.name}
+                <strong>Nome:</strong> {doctorDisplayName(formData.doctorInfo)}
               </p>
               <p>
                 <strong>CRM:</strong> {formData.doctorInfo.crm}
@@ -912,14 +1637,14 @@ function ReviewStep({ formData }: { formData: FormData }) {
           {formData.hospitalInfo ? (
             <>
               <p>
-                <strong>Nome:</strong> {formData.hospitalInfo.name}
+                <strong>Nome:</strong> {hospitalDisplayName(formData.hospitalInfo)}
               </p>
               <p>
-                <strong>CNES:</strong> {formData.hospitalInfo.cnes}
+                <strong>CNES:</strong> {formData.hospitalInfo.cnesCode}
               </p>
-              {formData.hospitalInfo.city && (
+              {hospitalCity(formData.hospitalInfo) && (
                 <p>
-                  <strong>Cidade:</strong> {formData.hospitalInfo.city}
+                  <strong>Cidade:</strong> {hospitalCity(formData.hospitalInfo)}
                 </p>
               )}
             </>
@@ -947,19 +1672,19 @@ function ReviewStep({ formData }: { formData: FormData }) {
           <p>
             <strong>Data da Solicitação:</strong>{' '}
             {formData.requestDate
-              ? new Date(formData.requestDate + 'T00:00:00').toLocaleDateString('pt-BR')
+              ? fmtDate(formData.requestDate)
               : '-'}
           </p>
           {formData.travelDate && (
             <p>
               <strong>Data da Viagem:</strong>{' '}
-              {new Date(formData.travelDate + 'T00:00:00').toLocaleDateString('pt-BR')}
+              {fmtDate(formData.travelDate)}
             </p>
           )}
           {formData.returnDate && (
             <p>
               <strong>Data de Retorno:</strong>{' '}
-              {new Date(formData.returnDate + 'T00:00:00').toLocaleDateString('pt-BR')}
+              {fmtDate(formData.returnDate)}
             </p>
           )}
           <p>
@@ -968,11 +1693,19 @@ function ReviewStep({ formData }: { formData: FormData }) {
               ? TRANSPORT_LABELS[formData.transportType as TransportType]
               : '-'}
           </p>
-          {formData.estimatedCost && (
-            <p>
-              <strong>Custo Estimado:</strong> R${' '}
-              {Number(formData.estimatedCost).toFixed(2)}
-            </p>
+          {(formData.transportationCost || formData.foodCost || formData.hotelCost) && (
+            <>
+              <p className="mt-1 font-medium">Custos:</p>
+              {formData.transportationCost && (
+                <p className="ml-2">Transporte: {formData.transportationCost}</p>
+              )}
+              {formData.foodCost && (
+                <p className="ml-2">Alimentação: {formData.foodCost}</p>
+              )}
+              {formData.hotelCost && (
+                <p className="ml-2">Hospedagem: {formData.hotelCost}</p>
+              )}
+            </>
           )}
           {formData.notes && (
             <p>
@@ -989,14 +1722,92 @@ function ReviewStep({ formData }: { formData: FormData }) {
 // Main page component
 // ---------------------------------------------------------------------------
 
+const DRAFT_KEY = 'tfd_draft_id';
+
+interface TfdDraftResponse {
+  id: string;
+  patientPerson?: PersonResult;
+  companionPerson?: PersonResult | null;
+  requestingDoctor?: DoctorResult | null;
+  destinationHospital?: HospitalResult | null;
+  diagnosisCid?: string | null;
+  procedureDescription?: string | null;
+  justification?: string | null;
+  requestDate?: string | null;
+  travelDate?: string | null;
+  returnDate?: string | null;
+  transportType?: string | null;
+  estimatedCost?: number | string | null;
+  transportationCost?: number | string | null;
+  foodCost?: number | string | null;
+  hotelCost?: number | string | null;
+  notes?: string | null;
+}
+
+function getResumeStep(draft: TfdDraftResponse): number {
+  if (!draft.requestingDoctor?.id) return 2;
+  if (!draft.destinationHospital?.id) return 3;
+  if (!draft.diagnosisCid || !draft.procedureDescription || !draft.justification) return 4;
+  if (!draft.requestDate || !draft.transportType) return 5;
+  return 6;
+}
+
+function toDateStr(val: string | null | undefined): string {
+  if (!val) return '';
+  return val.split('T')[0];
+}
+
 export default function NewTfdRequestPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<FormData>(INITIAL_FORM_DATA);
+  const [draftId, setDraftId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [loadingDraft, setLoadingDraft] = useState(true);
 
   const updateFormData = useCallback((partial: Partial<FormData>) => {
     setFormData((prev) => ({ ...prev, ...partial }));
+  }, []);
+
+  // On mount: check localStorage for a saved draft
+  useEffect(() => {
+    const savedId = localStorage.getItem(DRAFT_KEY);
+    if (!savedId) {
+      setLoadingDraft(false);
+      return;
+    }
+    apiClient<TfdDraftResponse>(`/tfd/requests/${savedId}`)
+      .then((draft) => {
+        setDraftId(savedId);
+        setFormData((prev) => ({
+          ...prev,
+          patientPersonId: draft.patientPerson?.id ?? '',
+          patientInfo: draft.patientPerson ?? null,
+          companionPersonId: draft.companionPerson?.id ?? null,
+          companionInfo: draft.companionPerson ?? null,
+          requestingDoctorId: draft.requestingDoctor?.id ?? '',
+          doctorInfo: draft.requestingDoctor ?? null,
+          destinationHospitalId: draft.destinationHospital?.id ?? '',
+          hospitalInfo: draft.destinationHospital ?? null,
+          diagnosisCid: draft.diagnosisCid ?? '',
+          procedureDescription: draft.procedureDescription ?? '',
+          justification: draft.justification ?? '',
+          requestDate: toDateStr(draft.requestDate) || todayISO(),
+          travelDate: toDateStr(draft.travelDate) || todayISO(),
+          returnDate: toDateStr(draft.returnDate) || todayISO(),
+          transportType: (draft.transportType as TransportType | '') ?? '',
+          estimatedCost: numToBRL(draft.estimatedCost),
+          transportationCost: numToBRL(draft.transportationCost),
+          foodCost: numToBRL(draft.foodCost),
+          hotelCost: numToBRL(draft.hotelCost),
+          notes: draft.notes ?? '',
+        }));
+        setCurrentStep(getResumeStep(draft));
+      })
+      .catch(() => {
+        localStorage.removeItem(DRAFT_KEY);
+      })
+      .finally(() => setLoadingDraft(false));
   }, []);
 
   const canProceed = (): boolean => {
@@ -1004,7 +1815,7 @@ export default function NewTfdRequestPage() {
       case 0:
         return !!formData.patientPersonId;
       case 1:
-        return true; // companion is optional
+        return true;
       case 2:
         return !!formData.requestingDoctorId;
       case 3:
@@ -1013,18 +1824,69 @@ export default function NewTfdRequestPage() {
         return (
           !!formData.diagnosisCid &&
           !!formData.procedureDescription &&
-          !!formData.justification &&
-          !!formData.requestDate &&
-          !!formData.transportType
+          !!formData.justification
         );
       case 5:
+        return !!formData.requestDate && !!formData.transportType;
+      case 6:
         return true;
       default:
         return false;
     }
   };
 
-  const handleNext = () => {
+  const getPatchDataForStep = (step: number): Record<string, unknown> => {
+    switch (step) {
+      case 1:
+        return { companionPersonId: formData.companionPersonId ?? null };
+      case 2:
+        return { requestingDoctorId: formData.requestingDoctorId };
+      case 3:
+        return { destinationHospitalId: formData.destinationHospitalId };
+      case 4:
+        return {
+          diagnosisCid: formData.diagnosisCid,
+          procedureDescription: formData.procedureDescription,
+          justification: formData.justification,
+        };
+      case 5:
+        return {
+          requestDate: formData.requestDate,
+          travelDate: formData.travelDate || null,
+          returnDate: formData.returnDate || null,
+          transportType: formData.transportType || undefined,
+          transportationCost: parseBRL(formData.transportationCost),
+          foodCost: parseBRL(formData.foodCost),
+          hotelCost: parseBRL(formData.hotelCost),
+          notes: formData.notes || null,
+        };
+      default:
+        return {};
+    }
+  };
+
+  const handleNext = async () => {
+    if (!canProceed()) return;
+    try {
+      if (currentStep === 0 && !draftId) {
+        const draft = await apiClient<TfdDraftResponse>('/tfd/requests', {
+          method: 'POST',
+          body: JSON.stringify({ patientPersonId: formData.patientPersonId }),
+        });
+        setDraftId(draft.id);
+        localStorage.setItem(DRAFT_KEY, draft.id);
+      } else if (draftId && currentStep > 0) {
+        await apiClient(`/tfd/requests/${draftId}`, {
+          method: 'PATCH',
+          body: JSON.stringify(getPatchDataForStep(currentStep)),
+        });
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : 'Erro ao salvar rascunho.',
+      );
+      return;
+    }
     if (currentStep < STEPS.length - 1) {
       setCurrentStep((s) => s + 1);
     }
@@ -1036,47 +1898,66 @@ export default function NewTfdRequestPage() {
     }
   };
 
-  const handleSkipCompanion = () => {
-    updateFormData({
-      companionPersonId: null,
-      companionInfo: null,
-    });
+  const handleSkipCompanion = async () => {
+    updateFormData({ companionPersonId: null, companionInfo: null });
+    if (draftId) {
+      try {
+        await apiClient(`/tfd/requests/${draftId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ companionPersonId: null }),
+        });
+      } catch {
+        // non-fatal
+      }
+    }
     setCurrentStep(2);
   };
 
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      const dto: CreateTfdRequestDto = {
-        patientPersonId: formData.patientPersonId,
-        companionPersonId: formData.companionPersonId || undefined,
-        requestingDoctorId: formData.requestingDoctorId,
-        destinationHospitalId: formData.destinationHospitalId,
-        diagnosisCid: formData.diagnosisCid,
-        procedureDescription: formData.procedureDescription,
-        justification: formData.justification,
-        requestDate: formData.requestDate,
-        travelDate: formData.travelDate || undefined,
-        returnDate: formData.returnDate || undefined,
-        transportType: formData.transportType as TransportType,
-        estimatedCost: formData.estimatedCost
-          ? Number(formData.estimatedCost)
-          : undefined,
-        notes: formData.notes || undefined,
-      };
-
-      await apiClient('/tfd/requests', {
-        method: 'POST',
-        body: JSON.stringify(dto),
-      });
-
+      let id = draftId;
+      if (!id) {
+        // No draft yet (edge case: user completed all steps without Next)
+        const draft = await apiClient<TfdDraftResponse>('/tfd/requests', {
+          method: 'POST',
+          body: JSON.stringify({ patientPersonId: formData.patientPersonId }),
+        });
+        id = draft.id;
+        localStorage.setItem(DRAFT_KEY, id);
+        setDraftId(id);
+        await apiClient(`/tfd/requests/${id}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            companionPersonId: formData.companionPersonId ?? null,
+            requestingDoctorId: formData.requestingDoctorId,
+            destinationHospitalId: formData.destinationHospitalId,
+            diagnosisCid: formData.diagnosisCid,
+            procedureDescription: formData.procedureDescription,
+            justification: formData.justification,
+            requestDate: formData.requestDate,
+            travelDate: formData.travelDate || null,
+            returnDate: formData.returnDate || null,
+            transportType: formData.transportType || undefined,
+            estimatedCost: formData.estimatedCost
+              ? Number(formData.estimatedCost)
+              : null,
+            transportationCost: formData.transportationCost
+              ? Number(formData.transportationCost)
+              : null,
+            foodCost: formData.foodCost ? Number(formData.foodCost) : null,
+            hotelCost: formData.hotelCost ? Number(formData.hotelCost) : null,
+            notes: formData.notes || null,
+          }),
+        });
+      }
+      await apiClient(`/tfd/requests/${id}/submit`, { method: 'POST' });
+      localStorage.removeItem(DRAFT_KEY);
       toast.success('Solicitação TFD criada com sucesso!');
       router.push('/tfd/requests');
     } catch (err) {
       toast.error(
-        err instanceof Error
-          ? err.message
-          : 'Erro ao criar solicitação.',
+        err instanceof Error ? err.message : 'Erro ao criar solicitação.',
       );
     } finally {
       setSubmitting(false);
@@ -1118,13 +1999,28 @@ export default function NewTfdRequestPage() {
     }
   };
 
+  if (loadingDraft) {
+    return (
+      <div className="flex items-center justify-center py-20 gap-2 text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        Carregando rascunho...
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <h1 className="text-2xl font-bold">Nova Solicitação TFD</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Nova Solicitação TFD</h1>
+        {draftId && (
+          <span className="text-xs text-muted-foreground">
+            Rascunho salvo automaticamente
+          </span>
+        )}
+      </div>
 
       <StepIndicator steps={STEPS} currentStep={currentStep} />
 
-      {/* Step content */}
       {currentStep === 0 && (
         <PersonSearchStep
           label="Paciente"
@@ -1159,9 +2055,12 @@ export default function NewTfdRequestPage() {
         <ClinicalDataStep formData={formData} onChange={updateFormData} />
       )}
 
-      {currentStep === 5 && <ReviewStep formData={formData} />}
+      {currentStep === 5 && (
+        <TravelCostsStep formData={formData} onChange={updateFormData} />
+      )}
 
-      {/* Navigation */}
+      {currentStep === 6 && <ReviewStep formData={formData} />}
+
       <Separator />
       <div className="flex items-center justify-between">
         <Button

@@ -27,21 +27,19 @@ import {
 interface TfdRequestListItem {
   id: string;
   protocolNumber: string;
-  statusId: string;
-  requestDate: string;
+  requestDate: string | null;
   createdAt: string;
-  patient?: {
-    id: string;
-    firstName: string;
-    lastName: string;
-  };
+  status: { id: string; code: string; name: string };
+  patientPerson?: { id: string; firstName: string; lastName: string };
   requestingDoctor?: {
     id: string;
-    name: string;
+    crm: string;
+    person?: { firstName: string; lastName: string };
   };
   destinationHospital?: {
     id: string;
-    name: string;
+    cnesCode: string;
+    organization?: { name: string };
   };
 }
 
@@ -56,15 +54,20 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: TfdStatus.CANCELLED, label: 'Cancelado' },
 ];
 
-function getStatusLabel(statusId: string): string {
-  const option = STATUS_OPTIONS.find((o) => o.value === statusId);
-  return option?.label ?? statusId;
-}
+const STATUS_LABELS: Record<string, string> = {
+  [TfdStatus.DRAFT]: 'Rascunho',
+  [TfdStatus.PENDING]: 'Pendente',
+  [TfdStatus.APPROVED]: 'Aprovado',
+  [TfdStatus.REJECTED]: 'Rejeitado',
+  [TfdStatus.SCHEDULED]: 'Agendado',
+  [TfdStatus.COMPLETED]: 'Concluído',
+  [TfdStatus.CANCELLED]: 'Cancelado',
+};
 
 function getStatusVariant(
-  statusId: string,
+  code: string,
 ): 'default' | 'secondary' | 'destructive' | 'outline' {
-  switch (statusId) {
+  switch (code) {
     case TfdStatus.APPROVED:
     case TfdStatus.COMPLETED:
       return 'default';
@@ -79,9 +82,18 @@ function getStatusVariant(
   }
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('pt-BR');
+  const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString();
+}
+
+function doctorName(
+  d: TfdRequestListItem['requestingDoctor'],
+): string {
+  if (!d) return '-';
+  if (d.person) return `${d.person.firstName} ${d.person.lastName}`;
+  return d.crm;
 }
 
 export default function TfdRequestListPage() {
@@ -170,19 +182,19 @@ export default function TfdRequestListPage() {
                   {request.protocolNumber}
                 </TableCell>
                 <TableCell>
-                  {request.patient
-                    ? `${request.patient.firstName} ${request.patient.lastName}`
+                  {request.patientPerson
+                    ? `${request.patientPerson.firstName} ${request.patientPerson.lastName}`
                     : '-'}
                 </TableCell>
+                <TableCell>{doctorName(request.requestingDoctor)}</TableCell>
                 <TableCell>
-                  {request.requestingDoctor?.name ?? '-'}
+                  {request.destinationHospital?.organization?.name ??
+                    request.destinationHospital?.cnesCode ??
+                    '-'}
                 </TableCell>
                 <TableCell>
-                  {request.destinationHospital?.name ?? '-'}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={getStatusVariant(request.statusId)}>
-                    {getStatusLabel(request.statusId)}
+                  <Badge variant={getStatusVariant(request.status.code)}>
+                    {STATUS_LABELS[request.status.code] ?? request.status.name}
                   </Badge>
                 </TableCell>
                 <TableCell>{formatDate(request.requestDate)}</TableCell>

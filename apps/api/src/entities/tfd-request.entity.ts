@@ -13,17 +13,17 @@ export class TfdRequestEntity extends BaseEntity {
   @Column({ type: 'varchar', unique: true, name: 'protocol_number' })
   protocolNumber!: string;
 
-  @Column({ type: 'varchar', name: 'diagnosis_cid' })
-  diagnosisCid!: string;
+  @Column({ type: 'varchar', name: 'diagnosis_cid', nullable: true })
+  diagnosisCid!: string | null;
 
-  @Column({ type: 'text', name: 'procedure_description' })
-  procedureDescription!: string;
+  @Column({ type: 'text', name: 'procedure_description', nullable: true })
+  procedureDescription!: string | null;
 
-  @Column({ type: 'text' })
-  justification!: string;
+  @Column({ type: 'text', nullable: true })
+  justification!: string | null;
 
-  @Column({ type: 'date', name: 'request_date' })
-  requestDate!: Date;
+  @Column({ type: 'date', name: 'request_date', nullable: true })
+  requestDate!: Date | null;
 
   @Column({ type: 'date', nullable: true, name: 'travel_date' })
   travelDate!: Date | null;
@@ -31,8 +31,8 @@ export class TfdRequestEntity extends BaseEntity {
   @Column({ type: 'date', nullable: true, name: 'return_date' })
   returnDate!: Date | null;
 
-  @Column({ type: 'varchar', name: 'transport_type' })
-  transportType!: string;
+  @Column({ type: 'varchar', name: 'transport_type', nullable: true })
+  transportType!: string | null;
 
   @Column({
     type: 'decimal',
@@ -42,6 +42,33 @@ export class TfdRequestEntity extends BaseEntity {
     scale: 2,
   })
   estimatedCost!: number | null;
+
+  @Column({
+    type: 'decimal',
+    nullable: true,
+    name: 'transportation_cost',
+    precision: 10,
+    scale: 2,
+  })
+  transportationCost!: number | null;
+
+  @Column({
+    type: 'decimal',
+    nullable: true,
+    name: 'food_cost',
+    precision: 10,
+    scale: 2,
+  })
+  foodCost!: number | null;
+
+  @Column({
+    type: 'decimal',
+    nullable: true,
+    name: 'hotel_cost',
+    precision: 10,
+    scale: 2,
+  })
+  hotelCost!: number | null;
 
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
@@ -54,13 +81,13 @@ export class TfdRequestEntity extends BaseEntity {
   @JoinColumn({ name: 'companion_person_id' })
   companionPerson!: PersonEntity | null;
 
-  @ManyToOne(() => DoctorEntity)
+  @ManyToOne(() => DoctorEntity, { nullable: true })
   @JoinColumn({ name: 'requesting_doctor_id' })
-  requestingDoctor!: DoctorEntity;
+  requestingDoctor!: DoctorEntity | null;
 
-  @ManyToOne(() => HospitalEntity)
+  @ManyToOne(() => HospitalEntity, { nullable: true })
   @JoinColumn({ name: 'destination_hospital_id' })
-  destinationHospital!: HospitalEntity;
+  destinationHospital!: HospitalEntity | null;
 
   @ManyToOne(() => HotelEntity, { nullable: true })
   @JoinColumn({ name: 'hotel_id' })

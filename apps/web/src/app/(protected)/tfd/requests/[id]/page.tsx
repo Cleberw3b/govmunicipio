@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, PencilLine } from 'lucide-react';
 import { TfdStatus, TransportType } from '@govmunicipio/shared';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -16,25 +16,28 @@ import {
 import { Separator } from '@/components/ui/separator';
 
 // ---------------------------------------------------------------------------
-// Types
+// Types — match actual API entity shape
 // ---------------------------------------------------------------------------
 
 interface TfdRequestDetail {
   id: string;
   protocolNumber: string;
-  statusId: string;
-  diagnosisCid: string;
-  procedureDescription: string;
-  justification: string;
-  requestDate: string;
+  diagnosisCid: string | null;
+  procedureDescription: string | null;
+  justification: string | null;
+  requestDate: string | null;
   travelDate?: string | null;
   returnDate?: string | null;
-  transportType: TransportType;
+  transportType: TransportType | null;
   estimatedCost?: number | null;
+  transportationCost?: number | null;
+  foodCost?: number | null;
+  hotelCost?: number | null;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
-  patient?: {
+  status: { id: string; code: string; name: string };
+  patientPerson?: {
     id: string;
     firstName: string;
     lastName: string;
@@ -44,7 +47,7 @@ interface TfdRequestDetail {
       dateOfBirth: string;
     };
   };
-  companion?: {
+  companionPerson?: {
     id: string;
     firstName: string;
     lastName: string;
@@ -56,16 +59,15 @@ interface TfdRequestDetail {
   } | null;
   requestingDoctor?: {
     id: string;
-    name: string;
     crm: string;
+    person?: { firstName: string; lastName: string };
     specialties?: { id: string; name: string }[];
-  };
+  } | null;
   destinationHospital?: {
     id: string;
-    name: string;
-    cnes: string;
-    city?: string;
-  };
+    cnesCode: string;
+    organization?: { name: string; address?: { city?: string } };
+  } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,9 +94,9 @@ const TRANSPORT_LABELS: Record<TransportType, string> = {
 };
 
 function getStatusVariant(
-  statusId: string,
+  code: string,
 ): 'default' | 'secondary' | 'destructive' | 'outline' {
-  switch (statusId) {
+  switch (code) {
     case TfdStatus.APPROVED:
     case TfdStatus.COMPLETED:
       return 'default';
@@ -111,7 +113,8 @@ function getStatusVariant(
 
 function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
-  return new Date(dateStr).toLocaleDateString('pt-BR');
+  const [y, m, d] = dateStr.split('T')[0].split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString();
 }
 
 // ---------------------------------------------------------------------------
@@ -164,14 +167,39 @@ export default function TfdRequestDetailPage() {
     );
   }
 
+  const doctorName = request.requestingDoctor?.person
+    ? `${request.requestingDoctor.person.firstName} ${request.requestingDoctor.person.lastName}`
+    : request.requestingDoctor?.crm ?? null;
+
+  const hospitalName =
+    request.destinationHospital?.organization?.name ??
+    request.destinationHospital?.cnesCode ??
+    null;
+
+  const hospitalCity =
+    request.destinationHospital?.organization?.address?.city ?? null;
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="outline" onClick={() => router.push('/tfd/requests')}>
-          <ArrowLeft />
-          Voltar
-        </Button>
-        <h1 className="text-2xl font-bold">Solicitação TFD</h1>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" onClick={() => router.push('/tfd/requests')}>
+            <ArrowLeft />
+            Voltar
+          </Button>
+          <h1 className="text-2xl font-bold">Solicitação TFD</h1>
+        </div>
+        {request.status.code === TfdStatus.DRAFT && (
+          <Button
+            onClick={() => {
+              localStorage.setItem('tfd_draft_id', request.id);
+              router.push('/tfd/requests/new');
+            }}
+          >
+            <PencilLine />
+            Continuar Solicitação
+          </Button>
+        )}
       </div>
 
       {/* Protocol info */}
@@ -184,13 +212,12 @@ export default function TfdRequestDetailPage() {
             <p>
               <strong>Protocolo:</strong> {request.protocolNumber}
             </p>
-            <Badge variant={getStatusVariant(request.statusId)}>
-              {STATUS_LABELS[request.statusId] ?? request.statusId}
+            <Badge variant={getStatusVariant(request.status.code)}>
+              {STATUS_LABELS[request.status.code] ?? request.status.name}
             </Badge>
           </div>
           <p>
-            <strong>Data de Criação:</strong>{' '}
-            {formatDate(request.createdAt)}
+            <strong>Data de Criação:</strong> {formatDate(request.createdAt)}
           </p>
           <p>
             <strong>Última Atualização:</strong>{' '}
@@ -205,27 +232,30 @@ export default function TfdRequestDetailPage() {
           <CardTitle>Paciente</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1 text-sm">
-          {request.patient ? (
+          {request.patientPerson ? (
             <>
               <p>
-                <strong>Nome:</strong> {request.patient.firstName}{' '}
-                {request.patient.lastName}
+                <strong>Nome:</strong> {request.patientPerson.firstName}{' '}
+                {request.patientPerson.lastName}
               </p>
-              {request.patient.identification?.cpf && (
+              {request.patientPerson.identification?.cpf && (
                 <p>
-                  <strong>CPF:</strong> {request.patient.identification.cpf}
+                  <strong>CPF:</strong>{' '}
+                  {request.patientPerson.identification.cpf}
                 </p>
               )}
-              {request.patient.identification?.susCardNumber && (
+              {request.patientPerson.identification?.susCardNumber && (
                 <p>
                   <strong>Cartão SUS:</strong>{' '}
-                  {request.patient.identification.susCardNumber}
+                  {request.patientPerson.identification.susCardNumber}
                 </p>
               )}
-              {request.patient.identification?.dateOfBirth && (
+              {request.patientPerson.identification?.dateOfBirth && (
                 <p>
                   <strong>Data de Nascimento:</strong>{' '}
-                  {formatDate(request.patient.identification.dateOfBirth)}
+                  {formatDate(
+                    request.patientPerson.identification.dateOfBirth,
+                  )}
                 </p>
               )}
             </>
@@ -243,22 +273,22 @@ export default function TfdRequestDetailPage() {
           <CardTitle>Acompanhante</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1 text-sm">
-          {request.companion ? (
+          {request.companionPerson ? (
             <>
               <p>
-                <strong>Nome:</strong> {request.companion.firstName}{' '}
-                {request.companion.lastName}
+                <strong>Nome:</strong> {request.companionPerson.firstName}{' '}
+                {request.companionPerson.lastName}
               </p>
-              {request.companion.identification?.cpf && (
+              {request.companionPerson.identification?.cpf && (
                 <p>
                   <strong>CPF:</strong>{' '}
-                  {request.companion.identification.cpf}
+                  {request.companionPerson.identification.cpf}
                 </p>
               )}
-              {request.companion.identification?.susCardNumber && (
+              {request.companionPerson.identification?.susCardNumber && (
                 <p>
                   <strong>Cartão SUS:</strong>{' '}
-                  {request.companion.identification.susCardNumber}
+                  {request.companionPerson.identification.susCardNumber}
                 </p>
               )}
             </>
@@ -276,9 +306,11 @@ export default function TfdRequestDetailPage() {
         <CardContent className="space-y-1 text-sm">
           {request.requestingDoctor ? (
             <>
-              <p>
-                <strong>Nome:</strong> {request.requestingDoctor.name}
-              </p>
+              {doctorName && (
+                <p>
+                  <strong>Nome:</strong> {doctorName}
+                </p>
+              )}
               <p>
                 <strong>CRM:</strong> {request.requestingDoctor.crm}
               </p>
@@ -294,7 +326,7 @@ export default function TfdRequestDetailPage() {
             </>
           ) : (
             <p className="text-muted-foreground">
-              Informações do médico não disponíveis
+              Médico não informado
             </p>
           )}
         </CardContent>
@@ -308,22 +340,22 @@ export default function TfdRequestDetailPage() {
         <CardContent className="space-y-1 text-sm">
           {request.destinationHospital ? (
             <>
-              <p>
-                <strong>Nome:</strong> {request.destinationHospital.name}
-              </p>
-              <p>
-                <strong>CNES:</strong> {request.destinationHospital.cnes}
-              </p>
-              {request.destinationHospital.city && (
+              {hospitalName && (
                 <p>
-                  <strong>Cidade:</strong> {request.destinationHospital.city}
+                  <strong>Nome:</strong> {hospitalName}
+                </p>
+              )}
+              <p>
+                <strong>CNES:</strong> {request.destinationHospital.cnesCode}
+              </p>
+              {hospitalCity && (
+                <p>
+                  <strong>Cidade:</strong> {hospitalCity}
                 </p>
               )}
             </>
           ) : (
-            <p className="text-muted-foreground">
-              Informações do hospital não disponíveis
-            </p>
+            <p className="text-muted-foreground">Hospital não informado</p>
           )}
         </CardContent>
       </Card>
@@ -334,21 +366,33 @@ export default function TfdRequestDetailPage() {
           <CardTitle>Dados Clínicos</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <p>
-            <strong>CID-10:</strong> {request.diagnosisCid}
-          </p>
-          <Separator />
-          <p>
-            <strong>Descrição do Procedimento:</strong>
-          </p>
-          <p className="text-muted-foreground">
-            {request.procedureDescription}
-          </p>
-          <Separator />
-          <p>
-            <strong>Justificativa:</strong>
-          </p>
-          <p className="text-muted-foreground">{request.justification}</p>
+          {request.diagnosisCid ? (
+            <p>
+              <strong>CID-10:</strong> {request.diagnosisCid}
+            </p>
+          ) : (
+            <p className="text-muted-foreground">CID não informado</p>
+          )}
+          {request.procedureDescription && (
+            <>
+              <Separator />
+              <p>
+                <strong>Descrição do Procedimento:</strong>
+              </p>
+              <p className="text-muted-foreground">
+                {request.procedureDescription}
+              </p>
+            </>
+          )}
+          {request.justification && (
+            <>
+              <Separator />
+              <p>
+                <strong>Justificativa:</strong>
+              </p>
+              <p className="text-muted-foreground">{request.justification}</p>
+            </>
+          )}
           <Separator />
           <div className="grid gap-2 sm:grid-cols-2">
             <p>
@@ -368,16 +412,66 @@ export default function TfdRequestDetailPage() {
               </p>
             )}
           </div>
-          <Separator />
-          <p>
-            <strong>Tipo de Transporte:</strong>{' '}
-            {TRANSPORT_LABELS[request.transportType] ?? request.transportType}
-          </p>
+          {request.transportType && (
+            <>
+              <Separator />
+              <p>
+                <strong>Tipo de Transporte:</strong>{' '}
+                {TRANSPORT_LABELS[request.transportType] ??
+                  request.transportType}
+              </p>
+            </>
+          )}
           {request.estimatedCost != null && (
             <p>
               <strong>Custo Estimado:</strong> R${' '}
               {Number(request.estimatedCost).toFixed(2)}
             </p>
+          )}
+          {(request.transportationCost != null ||
+            request.foodCost != null ||
+            request.hotelCost != null) && (
+            <>
+              <Separator />
+              <p>
+                <strong>Custos Reais:</strong>
+              </p>
+              <div className="ml-2 space-y-1">
+                {request.transportationCost != null && (
+                  <p>
+                    Transporte: R${' '}
+                    {Number(request.transportationCost).toLocaleString(
+                      'pt-BR',
+                      { minimumFractionDigits: 2 },
+                    )}
+                  </p>
+                )}
+                {request.foodCost != null && (
+                  <p>
+                    Alimentação: R${' '}
+                    {Number(request.foodCost).toLocaleString('pt-BR', {
+                      minimumFractionDigits: 2,
+                    })}
+                  </p>
+                )}
+                {request.hotelCost != null && (
+                  <p>
+                    Hospedagem: R${' '}
+                    {Number(request.hotelCost).toLocaleString('pt-BR', {
+                      minimumFractionDigits: 2,
+                    })}
+                  </p>
+                )}
+                <p className="font-medium">
+                  Total: R${' '}
+                  {(
+                    (Number(request.transportationCost) || 0) +
+                    (Number(request.foodCost) || 0) +
+                    (Number(request.hotelCost) || 0)
+                  ).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </p>
+              </div>
+            </>
           )}
           {request.notes && (
             <>

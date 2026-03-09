@@ -2,21 +2,16 @@ import {
   IsString,
   IsOptional,
   IsUUID,
-  IsNotEmpty,
   IsEnum,
   IsNumber,
   IsDateString,
 } from 'class-validator';
 import { TransportType } from '@govmunicipio/shared';
 
-export class CreateTfdRequestDto {
-  @IsUUID()
-  @IsNotEmpty()
-  patientPersonId!: string;
-
+export class UpdateTfdRequestDto {
   @IsUUID()
   @IsOptional()
-  companionPersonId?: string;
+  companionPersonId?: string | null;
 
   @IsUUID()
   @IsOptional()
@@ -28,7 +23,7 @@ export class CreateTfdRequestDto {
 
   @IsUUID()
   @IsOptional()
-  hotelId?: string;
+  hotelId?: string | null;
 
   @IsString()
   @IsOptional()
@@ -48,11 +43,11 @@ export class CreateTfdRequestDto {
 
   @IsDateString()
   @IsOptional()
-  travelDate?: string;
+  travelDate?: string | null;
 
   @IsDateString()
   @IsOptional()
-  returnDate?: string;
+  returnDate?: string | null;
 
   @IsEnum(TransportType)
   @IsOptional()
@@ -60,21 +55,21 @@ export class CreateTfdRequestDto {
 
   @IsNumber()
   @IsOptional()
-  estimatedCost?: number;
+  estimatedCost?: number | null;
 
   @IsNumber()
   @IsOptional()
-  transportationCost?: number;
+  transportationCost?: number | null;
 
   @IsNumber()
   @IsOptional()
-  foodCost?: number;
+  foodCost?: number | null;
 
   @IsNumber()
   @IsOptional()
-  hotelCost?: number;
+  hotelCost?: number | null;
 
   @IsString()
   @IsOptional()
-  notes?: string;
+  notes?: string | null;
 }
