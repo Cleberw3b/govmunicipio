@@ -158,7 +158,12 @@ interface FormData {
   travelDate: string;
   returnDate: string;
   transportType: TransportType | '';
+  contactPhone: string;
+  departureType: 'patient' | 'address';
+  departureCustomAddress: string;
   pickupAddressId: string;
+  returnType: 'hospital' | 'address';
+  returnPickupAddressId: string;
   estimatedCost: string;
   transportationCost: string;
   foodCost: string;
@@ -213,7 +218,12 @@ const INITIAL_FORM_DATA: FormData = {
   travelDate: todayISO(),
   returnDate: todayISO(),
   transportType: '',
+  contactPhone: '',
+  departureType: 'patient',
+  departureCustomAddress: '',
   pickupAddressId: '',
+  returnType: 'hospital',
+  returnPickupAddressId: '',
   estimatedCost: '',
   transportationCost: '',
   foodCost: '',
@@ -1474,11 +1484,10 @@ function TravelCostsStep({
   const showAddressPicker = TRANSPORT_NEEDS_ADDRESS.includes(formData.transportType);
 
   useEffect(() => {
-    if (!showAddressPicker) return;
     apiClient<PickupAddress[]>('/municipality/pickup-addresses')
       .then(setAddresses)
       .catch(() => {});
-  }, [showAddressPicker]);
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -1489,54 +1498,33 @@ function TravelCostsStep({
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Tipo de Transporte *</Label>
-              <Select
-                value={formData.transportType}
-                onValueChange={(value) =>
-                  onChange({ transportType: value as TransportType })
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Selecione o transporte" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(TRANSPORT_LABELS).map(([value, lbl]) => (
-                    <SelectItem key={value} value={value}>
-                      {lbl}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Select
+              value={formData.transportType}
+              onValueChange={(value) =>
+                onChange({ transportType: value as TransportType })
+              }
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Selecione o transporte" />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(TRANSPORT_LABELS).map(([value, lbl]) => (
+                  <SelectItem key={value} value={value}>
+                    {lbl}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {showAddressPicker && (
-            <div className="space-y-2">
-              <Label>Endereço de Embarque</Label>
-              {addresses.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nenhum endereço cadastrado.{' '}
-                  <a href="/dashboard/addresses" target="_blank" className="underline">
-                    Cadastrar endereço
-                  </a>
-                </p>
-              ) : (
-                <Select
-                  value={formData.pickupAddressId}
-                  onValueChange={(v) => onChange({ pickupAddressId: v })}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecione o endereço de embarque" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {addresses.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.name} — {a.street}, {a.number}, {a.city}/{a.state}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>Celular para Contato</Label>
+            <Input
+              placeholder="(00) 00000-0000"
+              value={formData.contactPhone}
+              onChange={(e) => onChange({ contactPhone: maskPhone(e.target.value) })}
+            />
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -1555,6 +1543,117 @@ function TravelCostsStep({
                 future
               />
             </div>
+          </div>
+
+          {showAddressPicker && (
+            <div className="space-y-3 rounded-md border p-4">
+              <Label className="text-sm font-semibold">Embarque (Ida)</Label>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={formData.departureType === 'patient' ? 'default' : 'outline'}
+                  onClick={() => onChange({ departureType: 'patient', departureCustomAddress: '', pickupAddressId: '' })}
+                >
+                  Endereço do Paciente
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={formData.departureType === 'address' ? 'default' : 'outline'}
+                  onClick={() => onChange({ departureType: 'address', departureCustomAddress: '' })}
+                >
+                  Ponto de Embarque
+                </Button>
+              </div>
+              {formData.departureType === 'patient' ? (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Endereço do paciente (opcional)</Label>
+                  <Input
+                    placeholder="Ex: Rua das Flores, 123, Centro"
+                    value={formData.departureCustomAddress}
+                    onChange={(e) => onChange({ departureCustomAddress: e.target.value })}
+                  />
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {addresses.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      Nenhum ponto cadastrado.{' '}
+                      <a href="/dashboard/addresses" target="_blank" className="underline">
+                        Cadastrar ponto
+                      </a>
+                    </p>
+                  ) : (
+                    <Select
+                      value={formData.pickupAddressId}
+                      onValueChange={(v) => onChange({ pickupAddressId: v })}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Selecione o ponto de embarque" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {addresses.map((a) => (
+                          <SelectItem key={a.id} value={a.id}>
+                            {a.name} — {a.street}, {a.number}, {a.city}/{a.state}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-3 rounded-md border p-4">
+            <Label className="text-sm font-semibold">Embarque (Retorno)</Label>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={formData.returnType === 'hospital' ? 'default' : 'outline'}
+                onClick={() => onChange({ returnType: 'hospital', returnPickupAddressId: '' })}
+              >
+                Hospital de Destino
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={formData.returnType === 'address' ? 'default' : 'outline'}
+                onClick={() => onChange({ returnType: 'address' })}
+              >
+                Ponto de Embarque
+              </Button>
+            </div>
+            {formData.returnType === 'address' && (
+              <div className="space-y-1">
+                {addresses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhum ponto cadastrado.{' '}
+                    <a href="/dashboard/addresses" target="_blank" className="underline">
+                      Cadastrar ponto
+                    </a>
+                  </p>
+                ) : (
+                  <Select
+                    value={formData.returnPickupAddressId}
+                    onValueChange={(v) => onChange({ returnPickupAddressId: v })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Selecione o ponto de retorno" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {addresses.map((a) => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.name} — {a.street}, {a.number}, {a.city}/{a.state}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
           </div>
 
         </CardContent>
@@ -1752,6 +1851,16 @@ function ReviewStep({ formData }: { formData: FormData }) {
               ? TRANSPORT_LABELS[formData.transportType as TransportType]
               : '-'}
           </p>
+          {formData.contactPhone && (
+            <p>
+              <strong>Celular:</strong> {formData.contactPhone}
+            </p>
+          )}
+          {formData.departureCustomAddress && (
+            <p>
+              <strong>Embarque (Ida):</strong> {formData.departureCustomAddress}
+            </p>
+          )}
           {(formData.transportationCost || formData.foodCost || formData.hotelCost) && (
             <>
               <p className="mt-1 font-medium">Custos:</p>
@@ -1796,6 +1905,10 @@ interface TfdDraftResponse {
   travelDate?: string | null;
   returnDate?: string | null;
   transportType?: string | null;
+  contactPhone?: string | null;
+  departureCustomAddress?: string | null;
+  pickupAddress?: { id: string } | null;
+  returnPickupAddress?: { id: string } | null;
   estimatedCost?: number | string | null;
   transportationCost?: number | string | null;
   foodCost?: number | string | null;
@@ -1857,7 +1970,12 @@ export default function NewTfdRequestPage() {
           travelDate: toDateStr(draft.travelDate) || todayISO(),
           returnDate: toDateStr(draft.returnDate) || todayISO(),
           transportType: (draft.transportType as TransportType | '') ?? '',
-          pickupAddressId: (draft as any).pickupAddress?.id ?? '',
+          contactPhone: draft.contactPhone ?? '',
+          departureCustomAddress: draft.departureCustomAddress ?? '',
+          departureType: draft.departureCustomAddress ? 'patient' : (draft.pickupAddress?.id ? 'address' : 'patient'),
+          pickupAddressId: draft.pickupAddress?.id ?? '',
+          returnPickupAddressId: draft.returnPickupAddress?.id ?? '',
+          returnType: draft.returnPickupAddress?.id ? 'address' : 'hospital',
           estimatedCost: numToBRL(draft.estimatedCost),
           transportationCost: numToBRL(draft.transportationCost),
           foodCost: numToBRL(draft.foodCost),
@@ -1918,8 +2036,15 @@ export default function NewTfdRequestPage() {
           travelDate: formData.travelDate || null,
           returnDate: formData.returnDate || null,
           transportType: formData.transportType || undefined,
-          pickupAddressId: TRANSPORT_NEEDS_ADDRESS.includes(formData.transportType)
+          contactPhone: formData.contactPhone || null,
+          departureCustomAddress: formData.departureType === 'patient'
+            ? formData.departureCustomAddress || null
+            : null,
+          pickupAddressId: TRANSPORT_NEEDS_ADDRESS.includes(formData.transportType) && formData.departureType === 'address'
             ? formData.pickupAddressId || null
+            : null,
+          returnPickupAddressId: formData.returnType === 'address'
+            ? formData.returnPickupAddressId || null
             : null,
           transportationCost: parseBRL(formData.transportationCost),
           foodCost: parseBRL(formData.foodCost),
@@ -2005,8 +2130,15 @@ export default function NewTfdRequestPage() {
             travelDate: formData.travelDate || null,
             returnDate: formData.returnDate || null,
             transportType: formData.transportType || undefined,
-            pickupAddressId: TRANSPORT_NEEDS_ADDRESS.includes(formData.transportType)
+            contactPhone: formData.contactPhone || null,
+            departureCustomAddress: formData.departureType === 'patient'
+              ? formData.departureCustomAddress || null
+              : null,
+            pickupAddressId: TRANSPORT_NEEDS_ADDRESS.includes(formData.transportType) && formData.departureType === 'address'
               ? formData.pickupAddressId || null
+              : null,
+            returnPickupAddressId: formData.returnType === 'address'
+              ? formData.returnPickupAddressId || null
               : null,
             estimatedCost: formData.estimatedCost
               ? Number(formData.estimatedCost)

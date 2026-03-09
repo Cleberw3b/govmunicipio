@@ -68,7 +68,19 @@ interface TfdRequestDetail {
     organization?: { name: string; address?: { city?: string } };
     specialties?: { id: string; name: string }[];
   } | null;
+  contactPhone?: string | null;
+  departureCustomAddress?: string | null;
   pickupAddress?: {
+    id: string;
+    name: string;
+    street: string;
+    number: string;
+    complement?: string | null;
+    neighborhood: string;
+    city: string;
+    state: string;
+  } | null;
+  returnPickupAddress?: {
     id: string;
     name: string;
     street: string;
@@ -416,10 +428,22 @@ export default function TfdRequestDetailPage() {
               value={TRANSPORT_LABELS[request.transportType] ?? request.transportType}
             />
           )}
-          {request.pickupAddress && (
+          {request.contactPhone && (
+            <Field label="Celular" value={request.contactPhone} />
+          )}
+          {request.departureCustomAddress && (
+            <Field label="Embarque (Ida)" value={request.departureCustomAddress} />
+          )}
+          {request.pickupAddress && !request.departureCustomAddress && (
             <Field
-              label="Endereço de Embarque"
-              value={`${request.pickupAddress.name} — ${request.pickupAddress.street}, ${request.pickupAddress.number}${request.pickupAddress.complement ? ` (${request.pickupAddress.complement})` : ''}, ${request.pickupAddress.city}/${request.pickupAddress.state}`}
+              label="Embarque (Ida)"
+              value={`${request.pickupAddress.name} — ${request.pickupAddress.street}, ${request.pickupAddress.number}, ${request.pickupAddress.city}/${request.pickupAddress.state}`}
+            />
+          )}
+          {request.returnPickupAddress && (
+            <Field
+              label="Embarque (Retorno)"
+              value={`${request.returnPickupAddress.name} — ${request.returnPickupAddress.street}, ${request.returnPickupAddress.number}, ${request.returnPickupAddress.city}/${request.returnPickupAddress.state}`}
             />
           )}
         </div>

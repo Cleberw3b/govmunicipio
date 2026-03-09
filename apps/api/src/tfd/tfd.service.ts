@@ -10,6 +10,7 @@ import { OrganizationService } from '../organization/organization.service';
 import { CreateTfdRequestDto } from './dto/create-tfd-request.dto';
 import { UpdateTfdRequestDto } from './dto/update-tfd-request.dto';
 import { UpdateTfdCostsDto } from './dto/update-tfd-costs.dto';
+import { WhatsAppService } from './whatsapp.service';
 
 interface TfdStats {
   total: number;
@@ -30,6 +31,7 @@ export class TfdService {
     @InjectRepository(MunicipalityEntity)
     private readonly municipalityRepository: Repository<MunicipalityEntity>,
     private readonly organizationService: OrganizationService,
+    private readonly whatsAppService: WhatsAppService,
   ) {}
 
   private generateProtocolNumber(): string {
@@ -49,10 +51,11 @@ export class TfdService {
       patientPerson: { identification: true },
       companionPerson: true,
       requestingDoctor: { person: true },
-      destinationHospital: { organization: true, specialties: true },
+      destinationHospital: { organization: { address: true }, specialties: true },
       specialty: true,
       hotel: true,
       pickupAddress: true,
+      returnPickupAddress: true,
       municipality: true,
       status: true,
     };
@@ -192,6 +195,11 @@ export class TfdService {
     if (dto.pickupAddressId !== undefined) {
       tfdRequest.pickupAddress = dto.pickupAddressId ? ({ id: dto.pickupAddressId } as any) : null;
     }
+    if (dto.returnPickupAddressId !== undefined) {
+      tfdRequest.returnPickupAddress = dto.returnPickupAddressId ? ({ id: dto.returnPickupAddressId } as any) : null;
+    }
+    if (dto.contactPhone !== undefined) tfdRequest.contactPhone = dto.contactPhone ?? null;
+    if (dto.departureCustomAddress !== undefined) tfdRequest.departureCustomAddress = dto.departureCustomAddress ?? null;
     if (dto.diagnosisCid !== undefined) tfdRequest.diagnosisCid = dto.diagnosisCid;
     if (dto.procedureDescription !== undefined) tfdRequest.procedureDescription = dto.procedureDescription;
     if (dto.justification !== undefined) tfdRequest.justification = dto.justification;
@@ -244,7 +252,9 @@ export class TfdService {
 
     tfdRequest.status = pendingStatus;
     await this.tfdRequestRepository.save(tfdRequest);
-    return this.findOne(id, organizationId);
+    const updated = await this.findOne(id, organizationId);
+    this.whatsAppService.sendTfdNotification(updated).catch(() => {}); // fire-and-forget
+    return updated;
   }
 
   async updateStatus(

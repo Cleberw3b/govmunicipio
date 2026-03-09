@@ -75,6 +75,12 @@ export class TfdRequestEntity extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 
+  @Column({ type: 'varchar', nullable: true, name: 'contact_phone' })
+  contactPhone!: string | null;
+
+  @Column({ type: 'text', nullable: true, name: 'departure_custom_address' })
+  departureCustomAddress!: string | null;
+
   @ManyToOne(() => PersonEntity)
   @JoinColumn({ name: 'patient_person_id' })
   patientPerson!: PersonEntity;
@@ -102,6 +108,10 @@ export class TfdRequestEntity extends BaseEntity {
   @ManyToOne(() => PickupAddressEntity, { nullable: true })
   @JoinColumn({ name: 'pickup_address_id' })
   pickupAddress!: PickupAddressEntity | null;
+
+  @ManyToOne(() => PickupAddressEntity, { nullable: true })
+  @JoinColumn({ name: 'return_pickup_address_id' })
+  returnPickupAddress!: PickupAddressEntity | null;
 
   @ManyToOne(() => MunicipalityEntity)
   @JoinColumn({ name: 'municipality_id' })

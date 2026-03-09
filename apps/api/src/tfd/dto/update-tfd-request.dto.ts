@@ -33,6 +33,18 @@ export class UpdateTfdRequestDto {
   @IsOptional()
   pickupAddressId?: string | null;
 
+  @IsUUID()
+  @IsOptional()
+  returnPickupAddressId?: string | null;
+
+  @IsString()
+  @IsOptional()
+  contactPhone?: string | null;
+
+  @IsString()
+  @IsOptional()
+  departureCustomAddress?: string | null;
+
   @IsString()
   @IsOptional()
   diagnosisCid?: string;
