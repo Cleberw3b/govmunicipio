@@ -242,19 +242,19 @@ export default function TfdRequestDetailPage() {
     <div className="mx-auto max-w-3xl space-y-4">
 
       {/* Header */}
-      <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <Button variant="ghost" className="-ml-2 self-start" onClick={() => router.push('/tfd/requests')}>
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" className="-ml-2" onClick={() => router.push('/tfd/requests')}>
           <ArrowLeft />
           Voltar
         </Button>
-        <div className="flex flex-1 flex-col items-center gap-2 text-center">
+        <div className="flex flex-col items-center gap-1 text-center">
           <h1 className="text-xl font-bold">Solicitação TFD</h1>
           <p className="text-sm text-muted-foreground">{request.protocolNumber}</p>
+        </div>
+        <div className="flex items-center gap-2">
           <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold ${getStatusClass(request.status.code)}`}>
             {STATUS_LABELS[request.status.code] ?? request.status.name}
           </span>
-        </div>
-        <div className="self-start">
           {request.status.code === TfdStatus.DRAFT && (
             <Button
               size="sm"
