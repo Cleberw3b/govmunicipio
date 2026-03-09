@@ -9,6 +9,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { MunicipalityService } from './municipality.service';
 import { CreateMunicipalityUserDto } from './dto/create-municipality-user.dto';
@@ -16,6 +17,8 @@ import { UpdateMunicipalityUserDto } from './dto/update-municipality-user.dto';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { CreateMunicipalityHospitalDto } from './dto/create-hospital.dto';
 import { CreateHotelDto } from './dto/create-hotel.dto';
+import { CreatePickupAddressDto } from './dto/create-pickup-address.dto';
+import { UpdatePickupAddressDto } from './dto/update-pickup-address.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -23,7 +26,7 @@ import {
   CurrentPrincipal,
   CurrentPrincipalData,
 } from '../auth/decorators/current-principal.decorator';
-import { HospitalEntity, HotelEntity, OrganizationEntity, PrincipalEntity } from '../entities';
+import { HospitalEntity, HotelEntity, OrganizationEntity, PrincipalEntity, PickupAddressEntity } from '../entities';
 
 @Controller('municipality')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -144,5 +147,39 @@ export class MunicipalityController {
     @CurrentPrincipal() p: CurrentPrincipalData,
   ): Promise<void> {
     return this.municipalityService.unlinkHotel(hotelId, p.organizationId);
+  }
+
+  // ─── Pickup Addresses ────────────────────────────────────────────────────────
+
+  @Get('pickup-addresses')
+  findPickupAddresses(@CurrentPrincipal() p: CurrentPrincipalData): Promise<PickupAddressEntity[]> {
+    return this.municipalityService.findPickupAddresses(p.organizationId);
+  }
+
+  @Post('pickup-addresses')
+  @HttpCode(HttpStatus.CREATED)
+  createPickupAddress(
+    @Body() dto: CreatePickupAddressDto,
+    @CurrentPrincipal() p: CurrentPrincipalData,
+  ): Promise<PickupAddressEntity> {
+    return this.municipalityService.createPickupAddress(dto, p.organizationId);
+  }
+
+  @Patch('pickup-addresses/:id')
+  updatePickupAddress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdatePickupAddressDto,
+    @CurrentPrincipal() p: CurrentPrincipalData,
+  ): Promise<PickupAddressEntity> {
+    return this.municipalityService.updatePickupAddress(id, dto, p.organizationId);
+  }
+
+  @Delete('pickup-addresses/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deletePickupAddress(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentPrincipal() p: CurrentPrincipalData,
+  ): Promise<void> {
+    return this.municipalityService.deletePickupAddress(id, p.organizationId);
   }
 }

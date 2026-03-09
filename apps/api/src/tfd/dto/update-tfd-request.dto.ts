@@ -29,6 +29,10 @@ export class UpdateTfdRequestDto {
   @IsOptional()
   hotelId?: string | null;
 
+  @IsUUID()
+  @IsOptional()
+  pickupAddressId?: string | null;
+
   @IsString()
   @IsOptional()
   diagnosisCid?: string;

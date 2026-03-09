@@ -29,6 +29,9 @@ import { UpdateMunicipalityUserDto } from './dto/update-municipality-user.dto';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { CreateMunicipalityHospitalDto } from './dto/create-hospital.dto';
 import { CreateHotelDto } from './dto/create-hotel.dto';
+import { CreatePickupAddressDto } from './dto/create-pickup-address.dto';
+import { UpdatePickupAddressDto } from './dto/update-pickup-address.dto';
+import { PickupAddressEntity } from '../entities';
 
 @Injectable()
 export class MunicipalityService {
@@ -524,5 +527,39 @@ export class MunicipalityService {
     await this.dataSource
       .getRepository(MunicipalityHotelLinkEntity)
       .delete({ municipalityId: municipality.id, hotelId });
+  }
+
+  // ─── Pickup Addresses ────────────────────────────────────────────────────────
+
+  async findPickupAddresses(organizationId: string): Promise<PickupAddressEntity[]> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+    return this.dataSource.getRepository(PickupAddressEntity).find({
+      where: { municipality: { id: municipality.id } },
+      order: { name: 'ASC' },
+    });
+  }
+
+  async createPickupAddress(dto: CreatePickupAddressDto, organizationId: string): Promise<PickupAddressEntity> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+    const repo = this.dataSource.getRepository(PickupAddressEntity);
+    const address = repo.create({ ...dto, municipality: { id: municipality.id } });
+    return repo.save(address);
+  }
+
+  async updatePickupAddress(id: string, dto: UpdatePickupAddressDto, organizationId: string): Promise<PickupAddressEntity> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+    const repo = this.dataSource.getRepository(PickupAddressEntity);
+    const address = await repo.findOne({ where: { id, municipality: { id: municipality.id } } });
+    if (!address) throw new NotFoundException(`Pickup address ${id} not found`);
+    Object.assign(address, dto);
+    return repo.save(address);
+  }
+
+  async deletePickupAddress(id: string, organizationId: string): Promise<void> {
+    const municipality = await this.getMunicipalityByOrganizationId(organizationId);
+    const repo = this.dataSource.getRepository(PickupAddressEntity);
+    const address = await repo.findOne({ where: { id, municipality: { id: municipality.id } } });
+    if (!address) throw new NotFoundException(`Pickup address ${id} not found`);
+    await repo.remove(address);
   }
 }

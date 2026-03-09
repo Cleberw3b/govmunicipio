@@ -52,6 +52,7 @@ export class TfdService {
       destinationHospital: { organization: true, specialties: true },
       specialty: true,
       hotel: true,
+      pickupAddress: true,
       municipality: true,
       status: true,
     };
@@ -187,6 +188,9 @@ export class TfdService {
     }
     if (dto.hotelId !== undefined) {
       tfdRequest.hotel = dto.hotelId ? ({ id: dto.hotelId } as any) : null;
+    }
+    if (dto.pickupAddressId !== undefined) {
+      tfdRequest.pickupAddress = dto.pickupAddressId ? ({ id: dto.pickupAddressId } as any) : null;
     }
     if (dto.diagnosisCid !== undefined) tfdRequest.diagnosisCid = dto.diagnosisCid;
     if (dto.procedureDescription !== undefined) tfdRequest.procedureDescription = dto.procedureDescription;

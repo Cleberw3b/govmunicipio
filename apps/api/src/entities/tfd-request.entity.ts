@@ -8,6 +8,7 @@ import { MunicipalityEntity } from './municipality.entity';
 import { PrincipalEntity } from './principal.entity';
 import { StatusEntity } from './status.entity';
 import { SpecialtyEntity } from './specialty.entity';
+import { PickupAddressEntity } from './pickup-address.entity';
 
 @Entity('tfd_request')
 export class TfdRequestEntity extends BaseEntity {
@@ -97,6 +98,10 @@ export class TfdRequestEntity extends BaseEntity {
   @ManyToOne(() => HotelEntity, { nullable: true })
   @JoinColumn({ name: 'hotel_id' })
   hotel!: HotelEntity | null;
+
+  @ManyToOne(() => PickupAddressEntity, { nullable: true })
+  @JoinColumn({ name: 'pickup_address_id' })
+  pickupAddress!: PickupAddressEntity | null;
 
   @ManyToOne(() => MunicipalityEntity)
   @JoinColumn({ name: 'municipality_id' })

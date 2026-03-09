@@ -158,6 +158,7 @@ interface FormData {
   travelDate: string;
   returnDate: string;
   transportType: TransportType | '';
+  pickupAddressId: string;
   estimatedCost: string;
   transportationCost: string;
   foodCost: string;
@@ -212,6 +213,7 @@ const INITIAL_FORM_DATA: FormData = {
   travelDate: todayISO(),
   returnDate: todayISO(),
   transportType: '',
+  pickupAddressId: '',
   estimatedCost: '',
   transportationCost: '',
   foodCost: '',
@@ -1446,6 +1448,21 @@ function ClinicalDataStep({
 // Step 5 - Travel & costs
 // ---------------------------------------------------------------------------
 
+const TRANSPORT_NEEDS_ADDRESS: (TransportType | string)[] = [
+  TransportType.BUS,
+  TransportType.VAN,
+  TransportType.AMBULANCE,
+];
+
+interface PickupAddress {
+  id: string;
+  name: string;
+  street: string;
+  number: string;
+  city: string;
+  state: string;
+}
+
 function TravelCostsStep({
   formData,
   onChange,
@@ -1453,24 +1470,21 @@ function TravelCostsStep({
   formData: FormData;
   onChange: (partial: Partial<FormData>) => void;
 }) {
+  const [addresses, setAddresses] = useState<PickupAddress[]>([]);
+  const showAddressPicker = TRANSPORT_NEEDS_ADDRESS.includes(formData.transportType);
+
+  useEffect(() => {
+    if (!showAddressPicker) return;
+    apiClient<PickupAddress[]>('/municipality/pickup-addresses')
+      .then(setAddresses)
+      .catch(() => {});
+  }, [showAddressPicker]);
+
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div>
-              <CardTitle>Viagem</CardTitle>
-              <CardDescription>Datas e transporte da solicitação</CardDescription>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-medium">Data da Solicitação</p>
-              <p className="text-sm text-muted-foreground">
-                {formData.requestDate
-                  ? fmtDate(formData.requestDate)
-                  : '-'}
-              </p>
-            </div>
-          </div>
+          <CardTitle>Viagem</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -1493,6 +1507,36 @@ function TravelCostsStep({
                 </SelectContent>
               </Select>
           </div>
+
+          {showAddressPicker && (
+            <div className="space-y-2">
+              <Label>Endereço de Embarque</Label>
+              {addresses.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Nenhum endereço cadastrado.{' '}
+                  <a href="/dashboard/addresses" target="_blank" className="underline">
+                    Cadastrar endereço
+                  </a>
+                </p>
+              ) : (
+                <Select
+                  value={formData.pickupAddressId}
+                  onValueChange={(v) => onChange({ pickupAddressId: v })}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecione o endereço de embarque" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {addresses.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.name} — {a.street}, {a.number}, {a.city}/{a.state}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
@@ -1690,12 +1734,6 @@ function ReviewStep({ formData }: { formData: FormData }) {
           <p>
             <strong>Justificativa:</strong> {formData.justification || '-'}
           </p>
-          <p>
-            <strong>Data da Solicitação:</strong>{' '}
-            {formData.requestDate
-              ? fmtDate(formData.requestDate)
-              : '-'}
-          </p>
           {formData.travelDate && (
             <p>
               <strong>Data da Viagem:</strong>{' '}
@@ -1819,6 +1857,7 @@ export default function NewTfdRequestPage() {
           travelDate: toDateStr(draft.travelDate) || todayISO(),
           returnDate: toDateStr(draft.returnDate) || todayISO(),
           transportType: (draft.transportType as TransportType | '') ?? '',
+          pickupAddressId: (draft as any).pickupAddress?.id ?? '',
           estimatedCost: numToBRL(draft.estimatedCost),
           transportationCost: numToBRL(draft.transportationCost),
           foodCost: numToBRL(draft.foodCost),
@@ -1879,6 +1918,9 @@ export default function NewTfdRequestPage() {
           travelDate: formData.travelDate || null,
           returnDate: formData.returnDate || null,
           transportType: formData.transportType || undefined,
+          pickupAddressId: TRANSPORT_NEEDS_ADDRESS.includes(formData.transportType)
+            ? formData.pickupAddressId || null
+            : null,
           transportationCost: parseBRL(formData.transportationCost),
           foodCost: parseBRL(formData.foodCost),
           hotelCost: parseBRL(formData.hotelCost),
@@ -1963,6 +2005,9 @@ export default function NewTfdRequestPage() {
             travelDate: formData.travelDate || null,
             returnDate: formData.returnDate || null,
             transportType: formData.transportType || undefined,
+            pickupAddressId: TRANSPORT_NEEDS_ADDRESS.includes(formData.transportType)
+              ? formData.pickupAddressId || null
+              : null,
             estimatedCost: formData.estimatedCost
               ? Number(formData.estimatedCost)
               : null,

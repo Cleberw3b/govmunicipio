@@ -68,6 +68,16 @@ interface TfdRequestDetail {
     organization?: { name: string; address?: { city?: string } };
     specialties?: { id: string; name: string }[];
   } | null;
+  pickupAddress?: {
+    id: string;
+    name: string;
+    street: string;
+    number: string;
+    complement?: string | null;
+    neighborhood: string;
+    city: string;
+    state: string;
+  } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -404,6 +414,12 @@ export default function TfdRequestDetailPage() {
             <Field
               label="Transporte"
               value={TRANSPORT_LABELS[request.transportType] ?? request.transportType}
+            />
+          )}
+          {request.pickupAddress && (
+            <Field
+              label="Endereço de Embarque"
+              value={`${request.pickupAddress.name} — ${request.pickupAddress.street}, ${request.pickupAddress.number}${request.pickupAddress.complement ? ` (${request.pickupAddress.complement})` : ''}, ${request.pickupAddress.city}/${request.pickupAddress.state}`}
             />
           )}
         </div>

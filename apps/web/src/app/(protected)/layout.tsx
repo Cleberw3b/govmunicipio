@@ -10,6 +10,7 @@ import {
   Hospital,
   LayoutDashboard,
   LogOut,
+  MapPin,
   Menu,
   Users,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
       ? [
           { name: 'Hospitais', href: '/dashboard/hospitals', icon: Hospital },
           { name: 'Hotéis', href: '/dashboard/hotels', icon: BedDouble },
+          { name: 'Endereços', href: '/dashboard/addresses', icon: MapPin },
           { name: 'Usuários', href: '/dashboard/users', icon: Users },
         ]
       : []),

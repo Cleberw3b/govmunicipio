@@ -19,3 +19,4 @@ export { TfdRequestEntity } from './tfd-request.entity';
 export { OtpTokenEntity } from './otp-token.entity';
 export { MunicipalityHospitalLinkEntity } from './municipality-hospital-link.entity';
 export { MunicipalityHotelLinkEntity } from './municipality-hotel-link.entity';
+export { PickupAddressEntity } from './pickup-address.entity';
