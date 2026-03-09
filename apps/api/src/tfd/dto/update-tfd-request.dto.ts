@@ -39,10 +39,6 @@ export class UpdateTfdRequestDto {
 
   @IsString()
   @IsOptional()
-  contactPhone?: string | null;
-
-  @IsString()
-  @IsOptional()
   departureCustomAddress?: string | null;
 
   @IsString()

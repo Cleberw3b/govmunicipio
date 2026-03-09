@@ -48,7 +48,7 @@ export class TfdService {
 
   private getRelations() {
     return {
-      patientPerson: { identification: true },
+      patientPerson: { identification: true, contacts: true },
       companionPerson: true,
       requestingDoctor: { person: true },
       destinationHospital: { organization: { address: true }, specialties: true },
@@ -198,7 +198,6 @@ export class TfdService {
     if (dto.returnPickupAddressId !== undefined) {
       tfdRequest.returnPickupAddress = dto.returnPickupAddressId ? ({ id: dto.returnPickupAddressId } as any) : null;
     }
-    if (dto.contactPhone !== undefined) tfdRequest.contactPhone = dto.contactPhone ?? null;
     if (dto.departureCustomAddress !== undefined) tfdRequest.departureCustomAddress = dto.departureCustomAddress ?? null;
     if (dto.diagnosisCid !== undefined) tfdRequest.diagnosisCid = dto.diagnosisCid;
     if (dto.procedureDescription !== undefined) tfdRequest.procedureDescription = dto.procedureDescription;

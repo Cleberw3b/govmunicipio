@@ -158,7 +158,6 @@ interface FormData {
   travelDate: string;
   returnDate: string;
   transportType: TransportType | '';
-  contactPhone: string;
   departureType: 'patient' | 'address';
   departureCustomAddress: string;
   pickupAddressId: string;
@@ -218,7 +217,6 @@ const INITIAL_FORM_DATA: FormData = {
   travelDate: todayISO(),
   returnDate: todayISO(),
   transportType: '',
-  contactPhone: '',
   departureType: 'patient',
   departureCustomAddress: '',
   pickupAddressId: '',
@@ -1517,15 +1515,6 @@ function TravelCostsStep({
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label>Celular para Contato</Label>
-            <Input
-              placeholder="(00) 00000-0000"
-              value={formData.contactPhone}
-              onChange={(e) => onChange({ contactPhone: maskPhone(e.target.value) })}
-            />
-          </div>
-
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Data da Viagem</Label>
@@ -1851,11 +1840,6 @@ function ReviewStep({ formData }: { formData: FormData }) {
               ? TRANSPORT_LABELS[formData.transportType as TransportType]
               : '-'}
           </p>
-          {formData.contactPhone && (
-            <p>
-              <strong>Celular:</strong> {formData.contactPhone}
-            </p>
-          )}
           {formData.departureCustomAddress && (
             <p>
               <strong>Embarque (Ida):</strong> {formData.departureCustomAddress}
@@ -1905,7 +1889,6 @@ interface TfdDraftResponse {
   travelDate?: string | null;
   returnDate?: string | null;
   transportType?: string | null;
-  contactPhone?: string | null;
   departureCustomAddress?: string | null;
   pickupAddress?: { id: string } | null;
   returnPickupAddress?: { id: string } | null;
@@ -1970,7 +1953,6 @@ export default function NewTfdRequestPage() {
           travelDate: toDateStr(draft.travelDate) || todayISO(),
           returnDate: toDateStr(draft.returnDate) || todayISO(),
           transportType: (draft.transportType as TransportType | '') ?? '',
-          contactPhone: draft.contactPhone ?? '',
           departureCustomAddress: draft.departureCustomAddress ?? '',
           departureType: draft.departureCustomAddress ? 'patient' : (draft.pickupAddress?.id ? 'address' : 'patient'),
           pickupAddressId: draft.pickupAddress?.id ?? '',
@@ -2036,7 +2018,6 @@ export default function NewTfdRequestPage() {
           travelDate: formData.travelDate || null,
           returnDate: formData.returnDate || null,
           transportType: formData.transportType || undefined,
-          contactPhone: formData.contactPhone || null,
           departureCustomAddress: formData.departureType === 'patient'
             ? formData.departureCustomAddress || null
             : null,
@@ -2130,7 +2111,6 @@ export default function NewTfdRequestPage() {
             travelDate: formData.travelDate || null,
             returnDate: formData.returnDate || null,
             transportType: formData.transportType || undefined,
-            contactPhone: formData.contactPhone || null,
             departureCustomAddress: formData.departureType === 'patient'
               ? formData.departureCustomAddress || null
               : null,

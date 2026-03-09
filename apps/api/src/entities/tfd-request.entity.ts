@@ -75,9 +75,6 @@ export class TfdRequestEntity extends BaseEntity {
   @Column({ type: 'text', nullable: true })
   notes!: string | null;
 
-  @Column({ type: 'varchar', nullable: true, name: 'contact_phone' })
-  contactPhone!: string | null;
-
   @Column({ type: 'text', nullable: true, name: 'departure_custom_address' })
   departureCustomAddress!: string | null;
 

@@ -83,9 +83,12 @@ export class WhatsAppService {
   }
 
   async sendTfdNotification(tfd: TfdRequestEntity): Promise<void> {
-    if (!this.apiUrl || !this.apiKey || !tfd.contactPhone) return;
+    const patientPhone = tfd.patientPerson?.contacts?.find(
+      (c) => c.type === 'phone',
+    )?.value;
+    if (!this.apiUrl || !this.apiKey || !patientPhone) return;
 
-    const phone = this.normalizePhone(tfd.contactPhone);
+    const phone = this.normalizePhone(patientPhone);
     const text = this.buildMessage(tfd);
 
     try {

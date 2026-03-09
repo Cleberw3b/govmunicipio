@@ -68,7 +68,6 @@ interface TfdRequestDetail {
     organization?: { name: string; address?: { city?: string } };
     specialties?: { id: string; name: string }[];
   } | null;
-  contactPhone?: string | null;
   departureCustomAddress?: string | null;
   pickupAddress?: {
     id: string;
@@ -427,9 +426,6 @@ export default function TfdRequestDetailPage() {
               label="Transporte"
               value={TRANSPORT_LABELS[request.transportType] ?? request.transportType}
             />
-          )}
-          {request.contactPhone && (
-            <Field label="Celular" value={request.contactPhone} />
           )}
           {request.departureCustomAddress && (
             <Field label="Embarque (Ida)" value={request.departureCustomAddress} />
