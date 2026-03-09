@@ -1,12 +1,13 @@
 # govmunicipio API — REST Client Test Collection
 # VS Code: Install "REST Client" extension (humao.rest-client)
 # Run each request with Ctrl+Alt+R / Cmd+Alt+R
+#
+# Switch environments: Ctrl+Shift+P → "Rest Client: Switch Environment" → prod | staging
+# Credentials are loaded from http-client.env.json via shell env vars:
+#   export SUPERADMIN_PASSWORD=... ADMIN_USERNAME=... ADMIN_PASSWORD=...
+# Or set them in docs/tests/.env (gitignored)
 
-@prodUrl = https://api-production-eb2b7.up.railway.app/api/v1
-@stagingUrl = http://localhost:3001/api/v1
-
-# Change this to switch environments
-@baseUrl = {{prodUrl}}
+@baseUrl = {{$shared prodUrl}}
 
 # ─────────────────────────────────────────────
 # AUTH
@@ -18,8 +19,8 @@ POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "username": "superadmin",
-  "password": "superadmin123"
+  "username": "{{superadminUsername}}",
+  "password": "{{superadminPassword}}"
 }
 
 ###
@@ -31,8 +32,8 @@ POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "username": "admin_municipio",
-  "password": "admin123"
+  "username": "{{adminUsername}}",
+  "password": "{{adminPassword}}"
 }
 
 ###

@@ -6,6 +6,17 @@
 
 set -uo pipefail
 
+# Load credentials from .env in the same directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+  # shellcheck source=/dev/null
+  set -a; source "$SCRIPT_DIR/.env"; set +a
+fi
+
+# Require credentials
+: "${SUPERADMIN_USERNAME:?Missing SUPERADMIN_USERNAME in docs/tests/.env}"
+: "${SUPERADMIN_PASSWORD:?Missing SUPERADMIN_PASSWORD in docs/tests/.env}"
+
 ENV="${1:-prod}"
 if [[ "$ENV" == "staging" ]]; then
   BASE="http://localhost:3001/api/v1"
@@ -69,7 +80,7 @@ echo "── Auth ────────────────────�
 
 STATUS=$(do_curl -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"superadmin","password":"superadmin123"}')
+  -d "{\"username\":\"$SUPERADMIN_USERNAME\",\"password\":\"$SUPERADMIN_PASSWORD\"}")
 BODY=$(cat "$TMPFILE")
 # accept both 200 and 201
 if [[ "$STATUS" == "200" || "$STATUS" == "201" ]]; then
@@ -85,7 +96,7 @@ SUPER_TOKEN=$(echo "$BODY" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
 # Bad credentials → 401
 STATUS=$(do_curl -X POST "$BASE/auth/login" \
   -H "Content-Type: application/json" \
-  -d '{"username":"superadmin","password":"wrongpass"}')
+  -d "{\"username\":\"$SUPERADMIN_USERNAME\",\"password\":\"wrongpass\"}")
 assert_status "POST /auth/login (bad creds → 401)" 401 "$STATUS"
 
 # Unauthenticated → 401
