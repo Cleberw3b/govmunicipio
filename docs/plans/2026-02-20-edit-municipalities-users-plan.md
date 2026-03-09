@@ -135,7 +135,7 @@ cd apps/api && pnpm dev
 curl -X PATCH http://localhost:3001/api/v1/admin/municipalities/<id> \
   -H "Authorization: Bearer <superadmin_token>" \
   -H "Content-Type: application/json" \
-  -d '{"name": "Prefeitura Atualizada", "isActive": false}'
+  -d '{"name": "Updated City Hall", "isActive": false}'
 # Expected: 200 with updated municipality JSON
 ```
 
@@ -582,7 +582,7 @@ curl -X POST http://localhost:3001/api/v1/auth/login \
 # List users for the municipality
 curl http://localhost:3001/api/v1/municipality/users \
   -H "Authorization: Bearer <admin_token>"
-# Expected: 200 with array of principals in Camaçari municipality
+# Expected: 200 with array of principals in the municipality
 ```
 
 **Step 7: Commit**
@@ -615,7 +615,7 @@ export function isAdminMunicipality(): boolean {
 
 **Step 2: Update (protected)/layout.tsx**
 
-Replace the static `navigation` array and update `SidebarContent` to conditionally show the Usuários link. Full updated file:
+Replace the static `navigation` array and update `SidebarContent` to conditionally show the Users link. Full updated file:
 
 ```typescript
 'use client';
@@ -649,9 +649,9 @@ function SidebarContent({ pathname }: { pathname: string }) {
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'TFD > Solicitações', href: '/tfd/requests', icon: FileText },
+    { name: 'TFD > Requests', href: '/tfd/requests', icon: FileText },
     ...(adminMunicipality
-      ? [{ name: 'Usuários', href: '/dashboard/users', icon: Users }]
+      ? [{ name: 'Users', href: '/dashboard/users', icon: Users }]
       : []),
   ];
 
@@ -701,7 +701,7 @@ function SidebarContent({ pathname }: { pathname: string }) {
           onClick={() => logout()}
         >
           <LogOut className="h-4 w-4" />
-          Sair
+          Log out
         </Button>
       </div>
     </div>
@@ -745,7 +745,7 @@ export default function ProtectedLayout({
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">
                 <Menu className="h-5 w-5" />
-                <span className="sr-only">Abrir menu</span>
+                <span className="sr-only">Open menu</span>
               </Button>
             </SheetTrigger>
             <div className="flex items-center gap-2">
@@ -760,7 +760,7 @@ export default function ProtectedLayout({
 
         <SheetContent side="left" className="w-64 p-0">
           <SheetHeader className="sr-only">
-            <SheetTitle>Menu de navegação</SheetTitle>
+            <SheetTitle>Navigation menu</SheetTitle>
           </SheetHeader>
           <SidebarContent pathname={pathname} />
         </SheetContent>
@@ -773,7 +773,7 @@ export default function ProtectedLayout({
 **Step 3: Commit**
 ```bash
 git add apps/web/src/lib/admin-auth.ts apps/web/src/app/\(protected\)/layout.tsx
-git commit -m "feat(web): add isAdminMunicipality helper and conditional Usuários link in sidebar"
+git commit -m "feat(web): add isAdminMunicipality helper and conditional Users link in sidebar"
 ```
 
 ---
@@ -883,12 +883,12 @@ export default function MunicipalitiesPage() {
         method: 'PATCH',
         body: JSON.stringify(form),
       });
-      toast.success('Município atualizado!');
+      toast.success('Municipality updated!');
       setEditing(null);
       setLoading(true);
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar');
+      toast.error(err instanceof Error ? err.message : 'Error updating municipality');
     } finally {
       setSaving(false);
     }
@@ -898,30 +898,30 @@ export default function MunicipalitiesPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Municípios</h1>
+          <h1 className="text-2xl font-bold">Municipalities</h1>
           <p className="text-muted-foreground">
-            {municipalities.length} município(s) cadastrado(s)
+            {municipalities.length} municipality(ies) registered
           </p>
         </div>
         <Button asChild>
           <Link href="/admin/municipalities/new">
             <Plus className="mr-2 h-4 w-4" />
-            Novo Município
+            New Municipality
           </Link>
         </Button>
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Carregando...</p>
+        <p className="text-muted-foreground">Loading...</p>
       ) : (
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>CNPJ</TableHead>
-                <TableHead>Cidade/UF</TableHead>
-                <TableHead>Cód. IBGE</TableHead>
+                <TableHead>City/State</TableHead>
+                <TableHead>IBGE Code</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-16" />
               </TableRow>
@@ -930,7 +930,7 @@ export default function MunicipalitiesPage() {
               {municipalities.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Nenhum município cadastrado
+                    No municipalities registered
                   </TableCell>
                 </TableRow>
               ) : (
@@ -942,7 +942,7 @@ export default function MunicipalitiesPage() {
                     <TableCell>{m.ibgeCode}</TableCell>
                     <TableCell>
                       <Badge variant={m.organization.isActive ? 'default' : 'secondary'}>
-                        {m.organization.isActive ? 'Ativo' : 'Inativo'}
+                        {m.organization.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -961,12 +961,12 @@ export default function MunicipalitiesPage() {
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Editar Município</DialogTitle>
+            <DialogTitle>Edit Municipality</DialogTitle>
           </DialogHeader>
           {form && (
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label>Nome da Prefeitura</Label>
+                <Label>City Hall Name</Label>
                 <Input value={form.name} onChange={updateField('name')} />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -975,37 +975,37 @@ export default function MunicipalitiesPage() {
                   <Input value={form.cnpj} onChange={updateField('cnpj')} placeholder="XX.XXX.XXX/XXXX-XX" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Código IBGE</Label>
+                  <Label>IBGE Code</Label>
                   <Input value={form.ibgeCode} onChange={updateField('ibgeCode')} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Cidade</Label>
+                  <Label>City</Label>
                   <Input value={form.city} onChange={updateField('city')} />
                 </div>
                 <div className="space-y-2">
-                  <Label>UF</Label>
+                  <Label>State</Label>
                   <Input value={form.state} onChange={updateField('state')} maxLength={2} />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-2 space-y-2">
-                  <Label>Rua</Label>
+                  <Label>Street</Label>
                   <Input value={form.street} onChange={updateField('street')} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Número</Label>
+                  <Label>Number</Label>
                   <Input value={form.number} onChange={updateField('number')} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Bairro</Label>
+                  <Label>Neighborhood</Label>
                   <Input value={form.neighborhood} onChange={updateField('neighborhood')} />
                 </div>
                 <div className="space-y-2">
-                  <Label>CEP</Label>
+                  <Label>Zip Code</Label>
                   <Input value={form.zipCode} onChange={updateField('zipCode')} placeholder="00000-000" />
                 </div>
               </div>
@@ -1017,14 +1017,14 @@ export default function MunicipalitiesPage() {
                   onChange={updateField('isActive')}
                   className="h-4 w-4"
                 />
-                <Label htmlFor="isActive">Município ativo</Label>
+                <Label htmlFor="isActive">Active municipality</Label>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
+              {saving ? 'Saving...' : 'Save'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1078,9 +1078,9 @@ interface Principal {
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin',
-  admin_municipality: 'Admin Municipal',
-  operator_tfd: 'Operador TFD',
-  viewer: 'Visualizador',
+  admin_municipality: 'Municipal Admin',
+  operator_tfd: 'TFD Operator',
+  viewer: 'Viewer',
 };
 
 const ALL_ROLES = ['super_admin', 'admin_municipality', 'operator_tfd', 'viewer'];
@@ -1156,12 +1156,12 @@ export default function UsersPage() {
         method: 'PATCH',
         body: JSON.stringify(body),
       });
-      toast.success('Usuário atualizado!');
+      toast.success('User updated!');
       setEditing(null);
       setLoading(true);
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar');
+      toast.error(err instanceof Error ? err.message : 'Error updating user');
     } finally {
       setSaving(false);
     }
@@ -1170,21 +1170,21 @@ export default function UsersPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Usuários</h1>
-        <p className="text-muted-foreground">{users.length} usuário(s) cadastrado(s)</p>
+        <h1 className="text-2xl font-bold">Users</h1>
+        <p className="text-muted-foreground">{users.length} user(s) registered</p>
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Carregando...</p>
+        <p className="text-muted-foreground">Loading...</p>
       ) : (
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Usuário</TableHead>
-                <TableHead>Nome</TableHead>
+                <TableHead>Username</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Roles</TableHead>
-                <TableHead>Organização</TableHead>
+                <TableHead>Organization</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-16" />
               </TableRow>
@@ -1209,12 +1209,12 @@ export default function UsersPage() {
                     {u.organizations.length > 0 ? (
                       u.organizations[0].name
                     ) : (
-                      <span className="italic text-muted-foreground">Plataforma</span>
+                      <span className="italic text-muted-foreground">Platform</span>
                     )}
                   </TableCell>
                   <TableCell>
                     <Badge variant={u.isActive ? 'default' : 'secondary'}>
-                      {u.isActive ? 'Ativo' : 'Inativo'}
+                      {u.isActive ? 'Active' : 'Inactive'}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -1232,17 +1232,17 @@ export default function UsersPage() {
       <Dialog open={!!editing} onOpenChange={(open) => !open && setEditing(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogTitle>Edit User</DialogTitle>
           </DialogHeader>
           {form && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Nome</Label>
+                  <Label>First Name</Label>
                   <Input value={form.firstName} onChange={updateField('firstName')} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Sobrenome</Label>
+                  <Label>Last Name</Label>
                   <Input value={form.lastName} onChange={updateField('lastName')} />
                 </div>
               </div>
@@ -1251,11 +1251,11 @@ export default function UsersPage() {
                 <Input value={form.cpf} onChange={updateField('cpf')} placeholder="000.000.000-00" />
               </div>
               <div className="space-y-2">
-                <Label>Nome de Usuário</Label>
+                <Label>Username</Label>
                 <Input value={form.username} onChange={updateField('username')} />
               </div>
               <div className="space-y-2">
-                <Label>Nova Senha (deixe em branco para manter)</Label>
+                <Label>New Password (leave blank to keep current)</Label>
                 <Input type="password" value={form.password} onChange={updateField('password')} />
               </div>
               <div className="space-y-2">
@@ -1282,14 +1282,14 @@ export default function UsersPage() {
                   onChange={updateField('isActive')}
                   className="h-4 w-4"
                 />
-                <Label htmlFor="userActive">Usuário ativo</Label>
+                <Label htmlFor="userActive">Active user</Label>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
+              {saving ? 'Saving...' : 'Save'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1342,9 +1342,9 @@ interface MunicipalityUser {
 }
 
 const ROLE_LABELS: Record<string, string> = {
-  admin_municipality: 'Admin Municipal',
-  operator_tfd: 'Operador TFD',
-  viewer: 'Visualizador',
+  admin_municipality: 'Municipal Admin',
+  operator_tfd: 'TFD Operator',
+  viewer: 'Viewer',
 };
 
 interface UserForm {
@@ -1426,19 +1426,19 @@ export default function DashboardUsersPage() {
           method: 'PATCH',
           body: JSON.stringify(body),
         });
-        toast.success('Usuário atualizado!');
+        toast.success('User updated!');
       } else {
         await apiClient('/municipality/users', {
           method: 'POST',
           body: JSON.stringify(form),
         });
-        toast.success('Usuário criado!');
+        toast.success('User created!');
       }
       setDialogOpen(false);
       setLoading(true);
       load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
+      toast.error(err instanceof Error ? err.message : 'Error saving user');
     } finally {
       setSaving(false);
     }
@@ -1448,24 +1448,24 @@ export default function DashboardUsersPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Usuários do Município</h1>
-          <p className="text-muted-foreground">{users.length} usuário(s)</p>
+          <h1 className="text-2xl font-bold">Municipality Users</h1>
+          <p className="text-muted-foreground">{users.length} user(s)</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" />
-          Novo Usuário
+          New User
         </Button>
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Carregando...</p>
+        <p className="text-muted-foreground">Loading...</p>
       ) : (
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Usuário</TableHead>
-                <TableHead>Nome</TableHead>
+                <TableHead>Username</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-16" />
@@ -1475,7 +1475,7 @@ export default function DashboardUsersPage() {
               {users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Nenhum usuário cadastrado
+                    No users registered
                   </TableCell>
                 </TableRow>
               ) : (
@@ -1496,7 +1496,7 @@ export default function DashboardUsersPage() {
                     </TableCell>
                     <TableCell>
                       <Badge variant={u.isActive ? 'default' : 'secondary'}>
-                        {u.isActive ? 'Ativo' : 'Inativo'}
+                        {u.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -1515,16 +1515,16 @@ export default function DashboardUsersPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{editingId ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
+            <DialogTitle>{editingId ? 'Edit User' : 'New User'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Nome</Label>
+                <Label>First Name</Label>
                 <Input value={form.firstName} onChange={updateField('firstName')} />
               </div>
               <div className="space-y-2">
-                <Label>Sobrenome</Label>
+                <Label>Last Name</Label>
                 <Input value={form.lastName} onChange={updateField('lastName')} />
               </div>
             </div>
@@ -1533,23 +1533,23 @@ export default function DashboardUsersPage() {
               <Input value={form.cpf} onChange={updateField('cpf')} placeholder="000.000.000-00" />
             </div>
             <div className="space-y-2">
-              <Label>Nome de Usuário</Label>
-              <Input value={form.username} onChange={updateField('username')} placeholder="operador_cidade" />
+              <Label>Username</Label>
+              <Input value={form.username} onChange={updateField('username')} placeholder="city_operator" />
             </div>
             <div className="space-y-2">
-              <Label>{editingId ? 'Nova Senha (deixe em branco para manter)' : 'Senha (mínimo 8 caracteres)'}</Label>
+              <Label>{editingId ? 'New Password (leave blank to keep current)' : 'Password (minimum 8 characters)'}</Label>
               <Input type="password" value={form.password} onChange={updateField('password')} />
             </div>
             <div className="space-y-2">
-              <Label>Função</Label>
+              <Label>Role</Label>
               <Select value={form.role} onValueChange={(v) => setForm((p) => ({ ...p, role: v }))}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin_municipality">Admin Municipal</SelectItem>
-                  <SelectItem value="operator_tfd">Operador TFD</SelectItem>
-                  <SelectItem value="viewer">Visualizador</SelectItem>
+                  <SelectItem value="admin_municipality">Municipal Admin</SelectItem>
+                  <SelectItem value="operator_tfd">TFD Operator</SelectItem>
+                  <SelectItem value="viewer">Viewer</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1562,14 +1562,14 @@ export default function DashboardUsersPage() {
                   onChange={updateField('isActive')}
                   className="h-4 w-4"
                 />
-                <Label htmlFor="muserActive">Usuário ativo</Label>
+                <Label htmlFor="muserActive">Active user</Label>
               </div>
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Salvando...' : editingId ? 'Salvar' : 'Criar'}
+              {saving ? 'Saving...' : editingId ? 'Save' : 'Create'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1589,28 +1589,28 @@ git commit -m "feat(web): add /dashboard/users page for admin_municipality user 
 
 ### Task 8: Deploy
 
-> ⚠️ **Antes de qualquer deploy, teste localmente com docker-compose.**
+> **Before any deploy, test locally with docker-compose.**
 
-**Step 0: Teste local obrigatório**
+**Step 0: Required local testing**
 ```bash
-# Subir banco local
+# Start local database
 docker compose up -d
 
-# Rodar a API localmente
+# Run the API locally
 pnpm --filter @govmunicipio/api dev
 
-# Em outro terminal, rodar o frontend
+# In another terminal, run the frontend
 pnpm --filter @govmunicipio/web dev
 
-# Verificar que os endpoints novos funcionam:
+# Verify the new endpoints work:
 # - PATCH http://localhost:3001/api/v1/admin/municipalities/:id
 # - PATCH http://localhost:3001/api/v1/admin/users/:id
 # - GET/POST/PATCH http://localhost:3001/api/v1/municipality/users
-# - Frontend: /admin/municipalities (botão editar)
-# - Frontend: /admin/users (botão editar)
-# - Frontend: /dashboard/users (página para admin_municipality)
+# - Frontend: /admin/municipalities (edit button)
+# - Frontend: /admin/users (edit button)
+# - Frontend: /dashboard/users (page for admin_municipality)
 
-# Somente após validar localmente, prosseguir com o deploy.
+# Only after validating locally, proceed with deploy.
 ```
 
 **Step 1: Push all commits**
@@ -1643,7 +1643,7 @@ curl -X POST https://api-production-eb2b7.up.railway.app/api/v1/auth/login \
 curl -X PATCH https://api-production-eb2b7.up.railway.app/api/v1/admin/municipalities/<id> \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
-  -d '{"name":"Prefeitura Teste"}'
+  -d '{"name":"Test City Hall"}'
 
 # Login as admin (municipality admin)
 # Test municipality users endpoint

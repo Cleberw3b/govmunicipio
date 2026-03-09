@@ -946,11 +946,11 @@ Seeds the database with:
 - ModuleStatus links for TFD
 - Permissions: tfd_request:create, tfd_request:read, tfd_request:update, person:create, person:read
 - Roles: super_admin (all), admin_municipality (all), operator_tfd (tfd+person), viewer (read only)
-- Specialties: Cardiologia, Oncologia, Neurologia, Ortopedia, Oftalmologia
+- Specialties: Cardiology, Oncology, Neurology, Orthopedics, Ophthalmology
 - 1 Organization (Municipality: "Prefeitura de Camaçari", IBGE: 2905701)
 - 1 Organization (Hospital: "Hospital Geral Roberto Santos", CNES: 0005622)
 - 1 Principal (admin user, linked to Municipality org, role: admin_municipality)
-- 1 Doctor (linked to a Person, CRM: "12345-BA", specialty: Cardiologia)
+- 1 Doctor (linked to a Person, CRM: "12345-BA", specialty: Cardiology)
 - 2 Persons (sample patient and companion)
 - Addresses and Contacts for all entities
 
@@ -1090,7 +1090,7 @@ git commit -m "feat: add login page and auth middleware"
 - Table with columns: Protocol, Patient, Doctor, Hospital, Status, Date
 - Filters by status
 - Pagination
-- "Nova Solicitação" button
+- "New Request" button
 
 **Step 2: Create multi-step form**
 
@@ -1129,7 +1129,7 @@ git commit -m "feat: add TFD request list, multi-step form, and detail pages"
 
 - Stats cards: Total requests, Pending, Approved, This month
 - Recent TFD requests table (last 10)
-- Quick action: "Nova Solicitação TFD"
+- Quick action: "New TFD Request"
 
 **Step 2: Commit**
 

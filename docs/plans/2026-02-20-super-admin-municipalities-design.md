@@ -1,42 +1,42 @@
-# Design: Super Admin e Gestão de Municípios
+# Design: Super Admin and Municipality Management
 
-**Data:** 2026-02-20
-**Status:** Aprovado
-
----
-
-## Contexto
-
-O sistema atual possui apenas um usuário `admin` com role `admin_municipality` vinculado ao município de Camaçari. Não existe um administrador global da plataforma nem telas para criar municípios e seus administradores.
-
-Este documento descreve a adição de:
-1. Usuário `superadmin` global (sem vínculo com município)
-2. Módulo `admin` no backend com endpoints de gestão
-3. Área `/admin` no frontend com layout próprio
+**Date:** 2026-02-20
+**Status:** Approved
 
 ---
 
-## Decisões
+## Context
 
-| Decisão | Escolha |
+The current system has only one `admin` user with the `admin_municipality` role linked to the municipality of Camaçari. There is no global platform administrator, nor any screens for creating municipalities and their administrators.
+
+This document describes the addition of:
+1. A global `superadmin` user (not linked to any municipality)
+2. An `admin` module in the backend with management endpoints
+3. An `/admin` area in the frontend with its own layout
+
+---
+
+## Decisions
+
+| Decision | Choice |
 |---------|---------|
-| Layout do super_admin | Área separada `/admin` com layout próprio |
-| Fluxo de criação | Município + primeiro admin num único formulário/endpoint |
-| Abordagem de implementação | Módulo `admin` separado (A) com endpoint de onboarding (C) |
+| super_admin layout | Separate `/admin` area with its own layout |
+| Creation flow | Municipality + first admin in a single form/endpoint |
+| Implementation approach | Separate `admin` module (A) with onboarding endpoint (C) |
 
 ---
 
 ## 1. Seed
 
-O `seed.ts` existente cria `admin` (admin_municipality). Será adicionado um segundo bloco:
+The existing `seed.ts` creates `admin` (admin_municipality). A second block will be added:
 
 - `Person`: firstName="Admin", lastName="Sistema"
 - `Principal`: username=`superadmin`, password=`superadmin123`
-- Role: `super_admin` (já existe)
-- `organization = null` — sem vínculo com município
-- JWT resultante: `{ sub, organizationId: '', roles: ['super_admin'], permissions: [...] }`
+- Role: `super_admin` (already exists)
+- `organization = null` — not linked to any municipality
+- Resulting JWT: `{ sub, organizationId: '', roles: ['super_admin'], permissions: [...] }`
 
-Também serão adicionadas as permissões novas ao seed e à role `super_admin`:
+New permissions will also be added to the seed and to the `super_admin` role:
 - `municipality:create`
 - `municipality:read`
 - `principal:create`
@@ -44,9 +44,9 @@ Também serão adicionadas as permissões novas ao seed e à role `super_admin`:
 
 ---
 
-## 2. Backend — Módulo Admin
+## 2. Backend — Admin Module
 
-### Estrutura
+### Structure
 
 ```
 apps/api/src/admin/
@@ -59,27 +59,27 @@ apps/api/src/admin/
 
 ### Guards
 
-Todos os endpoints do módulo `admin` requerem:
-- `JwtAuthGuard` (token válido)
-- `RolesGuard` com `@Roles('super_admin')`
+All endpoints in the `admin` module require:
+- `JwtAuthGuard` (valid token)
+- `RolesGuard` with `@Roles('super_admin')`
 
 ### Endpoints
 
-| Método | Rota | Descrição |
+| Method | Route | Description |
 |--------|------|-----------|
-| GET | `/admin/municipalities` | Lista todos os municípios com organização |
-| POST | `/admin/municipalities` | Cria município + admin (transação atômica) |
-| GET | `/admin/municipalities/:id` | Detalhe do município |
-| GET | `/admin/users` | Lista todos os principals com roles e organização |
+| GET | `/admin/municipalities` | List all municipalities with organization |
+| POST | `/admin/municipalities` | Create municipality + admin (atomic transaction) |
+| GET | `/admin/municipalities/:id` | Municipality detail |
+| GET | `/admin/users` | List all principals with roles and organization |
 
 ### DTO `CreateMunicipalityDto`
 
 ```typescript
 class MunicipalityDataDto {
-  name: string;       // nome da prefeitura
+  name: string;       // municipality hall name
   cnpj: string;
   ibgeCode: string;
-  state: string;      // UF (2 chars)
+  state: string;      // state code (2 chars)
   city: string;
   street: string;
   number: string;
@@ -101,75 +101,75 @@ class CreateMunicipalityDto {
 }
 ```
 
-### Transação de criação (`POST /admin/municipalities`)
+### Creation transaction (`POST /admin/municipalities`)
 
-1. `Address` ← dados de endereço
-2. `Organization` ← name, cnpj, isActive=true, address
-3. `Municipality` ← ibgeCode, state, organization
-4. `Person` ← firstName, lastName, gender=NOT_INFORMED
-5. `PersonIdentification` ← cpf, person
-6. `Principal` ← username, passwordHash, person, organization=orgEntity
+1. `Address` — from address data
+2. `Organization` — name, cnpj, isActive=true, address
+3. `Municipality` — ibgeCode, state, organization
+4. `Person` — firstName, lastName, gender=NOT_INFORMED
+5. `PersonIdentification` — cpf, person
+6. `Principal` — username, passwordHash, person, organization=orgEntity
 7. `principal.roles = [admin_municipality]`
 8. `principal.organizations = [orgEntity]`
-9. Commit transação
+9. Commit transaction
 
 ---
 
-## 3. Frontend — Área `/admin`
+## 3. Frontend — `/admin` Area
 
-### Estrutura de rotas
+### Route structure
 
 ```
 apps/web/src/app/admin/
-  layout.tsx             ← verifica role super_admin, layout próprio
-  page.tsx               ← redirect para /admin/municipalities
+  layout.tsx             ← verifies super_admin role, own layout
+  page.tsx               ← redirect to /admin/municipalities
   municipalities/
-    page.tsx             ← lista de municípios (tabela)
+    page.tsx             ← municipalities list (table)
     new/
-      page.tsx           ← formulário 2 passos
+      page.tsx           ← 2-step form
   users/
-    page.tsx             ← lista de principals (somente leitura)
+    page.tsx             ← principals list (read-only)
 ```
 
-### Layout `/admin`
+### `/admin` Layout
 
-- Sidebar próprio com links: **Municípios** e **Usuários**
-- Header com "GovMunicípio — Administração da Plataforma"
-- Proteção: lê token JWT do localStorage, verifica `roles.includes('super_admin')`, senão redireciona para `/dashboard`
+- Dedicated sidebar with links: **Municipalities** and **Users**
+- Header with "GovMunicípio — Platform Administration"
+- Protection: reads JWT token from localStorage, checks `roles.includes('super_admin')`, otherwise redirects to `/dashboard`
 
-### Tela de Municípios (`/admin/municipalities`)
+### Municipalities Screen (`/admin/municipalities`)
 
-- Tabela com colunas: Nome, CNPJ, Estado, Código IBGE, Ativo
-- Botão "Novo Município"
+- Table with columns: Name, CNPJ, State, IBGE Code, Active
+- "New Municipality" button
 
-### Formulário Novo Município (`/admin/municipalities/new`)
+### New Municipality Form (`/admin/municipalities/new`)
 
-**Passo 1 — Dados do Município:**
-- Nome da prefeitura, CNPJ, Código IBGE, UF
-- Endereço: rua, número, bairro, CEP, cidade
+**Step 1 — Municipality Data:**
+- Municipality hall name, CNPJ, IBGE Code, State
+- Address: street, number, neighborhood, zip code, city
 
-**Passo 2 — Primeiro Administrador:**
-- Username, Senha, Nome, Sobrenome, CPF
+**Step 2 — First Administrator:**
+- Username, Password, First Name, Last Name, CPF
 
-Submissão: `POST /admin/municipalities` com ambos os conjuntos de dados.
+Submission: `POST /admin/municipalities` with both data sets.
 
-### Tela de Usuários (`/admin/users`)
+### Users Screen (`/admin/users`)
 
-- Tabela com colunas: Username, Nome, Roles, Organização, Ativo
-- Somente leitura (CRUD de usuários pode ser adicionado em iteração futura)
-
----
-
-## 4. Proteção de Acesso
-
-O `super_admin` sem `organizationId` não deve acessar dados de TFD (que são filtrados por `organizationId`). Reciprocamente, o `admin_municipality` não deve acessar `/admin`.
-
-A verificação de role `super_admin` no frontend é feita pelo layout `/admin/layout.tsx` via JWT claims. No backend, o `RolesGuard` valida a role no token.
+- Table with columns: Username, Name, Roles, Organization, Active
+- Read-only (user CRUD may be added in a future iteration)
 
 ---
 
-## Entregas
+## 4. Access Control
 
-1. `seed.ts` — bloco superadmin + permissões novas
-2. `apps/api/src/admin/` — módulo com 4 endpoints
-3. `apps/web/src/app/admin/` — 4 páginas com layout próprio
+The `super_admin` without an `organizationId` must not access TFD data (which is filtered by `organizationId`). Conversely, `admin_municipality` must not access `/admin`.
+
+The `super_admin` role check on the frontend is performed by the `/admin/layout.tsx` via JWT claims. On the backend, `RolesGuard` validates the role in the token.
+
+---
+
+## Deliverables
+
+1. `seed.ts` — superadmin block + new permissions
+2. `apps/api/src/admin/` — module with 4 endpoints
+3. `apps/web/src/app/admin/` — 4 pages with dedicated layout

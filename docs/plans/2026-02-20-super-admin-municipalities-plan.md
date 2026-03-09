@@ -28,22 +28,22 @@ In `apps/api/src/database/seeds/seed.ts`, locate the `permissionsData` array (ar
 {
   resource: 'municipality',
   action: 'create',
-  description: 'Criar municipio',
+  description: 'Create municipality',
 },
 {
   resource: 'municipality',
   action: 'read',
-  description: 'Visualizar municipios',
+  description: 'View municipalities',
 },
 {
   resource: 'principal',
   action: 'create',
-  description: 'Criar principal/usuario',
+  description: 'Create principal/user',
 },
 {
   resource: 'principal',
   action: 'read',
-  description: 'Visualizar principals/usuarios',
+  description: 'View principals/users',
 },
 ```
 
@@ -594,8 +594,8 @@ import { isAuthenticated, logout } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/admin-auth';
 
 const adminNav = [
-  { name: 'Municípios', href: '/admin/municipalities', icon: Building2 },
-  { name: 'Usuários', href: '/admin/users', icon: Users },
+  { name: 'Municipalities', href: '/admin/municipalities', icon: Building2 },
+  { name: 'Users', href: '/admin/users', icon: Users },
 ];
 
 function AdminSidebar({ pathname }: { pathname: string }) {
@@ -607,7 +607,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
         </div>
         <div>
           <p className="text-sm font-semibold leading-none">GovMunicípio</p>
-          <p className="text-xs text-muted-foreground">Administração</p>
+          <p className="text-xs text-muted-foreground">Administration</p>
         </div>
       </div>
 
@@ -638,7 +638,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
       <div className="px-4 py-4 space-y-2">
         <Link href="/dashboard" className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground">
           <LayoutDashboard className="h-3 w-3" />
-          Voltar ao sistema
+          Back to system
         </Link>
         <Button
           variant="ghost"
@@ -647,7 +647,7 @@ function AdminSidebar({ pathname }: { pathname: string }) {
           onClick={() => logout()}
         >
           <LogOut className="h-4 w-4" />
-          Sair
+          Sign out
         </Button>
       </div>
     </div>
@@ -759,30 +759,30 @@ export default function MunicipalitiesPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Municípios</h1>
+          <h1 className="text-2xl font-bold">Municipalities</h1>
           <p className="text-muted-foreground">
-            {municipalities.length} município(s) cadastrado(s)
+            {municipalities.length} municipality(s) registered
           </p>
         </div>
         <Button asChild>
           <Link href="/admin/municipalities/new">
             <Plus className="mr-2 h-4 w-4" />
-            Novo Município
+            New Municipality
           </Link>
         </Button>
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Carregando...</p>
+        <p className="text-muted-foreground">Loading...</p>
       ) : (
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Nome</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>CNPJ</TableHead>
-                <TableHead>Cidade/UF</TableHead>
-                <TableHead>Cód. IBGE</TableHead>
+                <TableHead>City/State</TableHead>
+                <TableHead>IBGE Code</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -790,7 +790,7 @@ export default function MunicipalitiesPage() {
               {municipalities.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    Nenhum município cadastrado
+                    No municipalities registered
                   </TableCell>
                 </TableRow>
               ) : (
@@ -804,7 +804,7 @@ export default function MunicipalitiesPage() {
                     <TableCell>{m.ibgeCode}</TableCell>
                     <TableCell>
                       <Badge variant={m.organization.isActive ? 'default' : 'secondary'}>
-                        {m.organization.isActive ? 'Ativo' : 'Inativo'}
+                        {m.organization.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -902,10 +902,10 @@ export default function NewMunicipalityPage() {
         method: 'POST',
         body: JSON.stringify({ municipality: mData, admin: aData }),
       });
-      toast.success('Município criado com sucesso!');
+      toast.success('Municipality created successfully!');
       router.push('/admin/municipalities');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao criar município');
+      toast.error(err instanceof Error ? err.message : 'Error creating municipality');
     } finally {
       setLoading(false);
     }
@@ -914,7 +914,7 @@ export default function NewMunicipalityPage() {
   return (
     <div className="mx-auto max-w-2xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Novo Município</h1>
+        <h1 className="text-2xl font-bold">New Municipality</h1>
         <div className="mt-3 flex items-center gap-3">
           {[1, 2].map((s) => (
             <div key={s} className="flex items-center gap-2">
@@ -930,7 +930,7 @@ export default function NewMunicipalityPage() {
                 {step > s ? <Check className="h-3 w-3" /> : s}
               </div>
               <span className={`text-sm ${step === s ? 'font-medium' : 'text-muted-foreground'}`}>
-                {s === 1 ? 'Dados do Município' : 'Administrador'}
+                {s === 1 ? 'Municipality Data' : 'Administrator'}
               </span>
               {s < 2 && <div className="h-px w-8 bg-border" />}
             </div>
@@ -941,14 +941,14 @@ export default function NewMunicipalityPage() {
       {step === 1 && (
         <Card>
           <CardHeader>
-            <CardTitle>Dados do Município</CardTitle>
-            <CardDescription>Informações da prefeitura municipal</CardDescription>
+            <CardTitle>Municipality Data</CardTitle>
+            <CardDescription>Municipal hall information</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Nome da Prefeitura</Label>
+              <Label htmlFor="name">Municipality Hall Name</Label>
               <Input id="name" value={mData.name} onChange={updateM('name')}
-                placeholder="Prefeitura Municipal de..." />
+                placeholder="Municipal Hall of..." />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -957,46 +957,46 @@ export default function NewMunicipalityPage() {
                   placeholder="XX.XXX.XXX/XXXX-XX" />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="ibgeCode">Código IBGE</Label>
+                <Label htmlFor="ibgeCode">IBGE Code</Label>
                 <Input id="ibgeCode" value={mData.ibgeCode} onChange={updateM('ibgeCode')}
-                  placeholder="7 dígitos" />
+                  placeholder="7 digits" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="city">Cidade</Label>
+                <Label htmlFor="city">City</Label>
                 <Input id="city" value={mData.city} onChange={updateM('city')} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="state">UF</Label>
+                <Label htmlFor="state">State</Label>
                 <Input id="state" value={mData.state} onChange={updateM('state')}
                   maxLength={2} placeholder="BA" />
               </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-2 space-y-2">
-                <Label htmlFor="street">Rua</Label>
+                <Label htmlFor="street">Street</Label>
                 <Input id="street" value={mData.street} onChange={updateM('street')} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="number">Número</Label>
+                <Label htmlFor="number">Number</Label>
                 <Input id="number" value={mData.number} onChange={updateM('number')} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="neighborhood">Bairro</Label>
+                <Label htmlFor="neighborhood">Neighborhood</Label>
                 <Input id="neighborhood" value={mData.neighborhood} onChange={updateM('neighborhood')} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="zipCode">CEP</Label>
+                <Label htmlFor="zipCode">Zip Code</Label>
                 <Input id="zipCode" value={mData.zipCode} onChange={updateM('zipCode')}
                   placeholder="00000-000" />
               </div>
             </div>
             <div className="flex justify-end pt-2">
               <Button onClick={() => setStep(2)}>
-                Próximo <ChevronRight className="ml-2 h-4 w-4" />
+                Next <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
           </CardContent>
@@ -1006,17 +1006,17 @@ export default function NewMunicipalityPage() {
       {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle>Primeiro Administrador</CardTitle>
-            <CardDescription>Usuário admin_municipality para este município</CardDescription>
+            <CardTitle>First Administrator</CardTitle>
+            <CardDescription>admin_municipality user for this municipality</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">Nome</Label>
+                <Label htmlFor="firstName">First Name</Label>
                 <Input id="firstName" value={aData.firstName} onChange={updateA('firstName')} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Sobrenome</Label>
+                <Label htmlFor="lastName">Last Name</Label>
                 <Input id="lastName" value={aData.lastName} onChange={updateA('lastName')} />
               </div>
             </div>
@@ -1026,20 +1026,20 @@ export default function NewMunicipalityPage() {
                 placeholder="000.000.000-00" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="username">Nome de Usuário</Label>
+              <Label htmlFor="username">Username</Label>
               <Input id="username" value={aData.username} onChange={updateA('username')}
-                placeholder="admin_cidade" />
+                placeholder="admin_city" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Senha (mínimo 8 caracteres)</Label>
+              <Label htmlFor="password">Password (minimum 8 characters)</Label>
               <Input id="password" type="password" value={aData.password} onChange={updateA('password')} />
             </div>
             <div className="flex justify-between pt-2">
               <Button variant="outline" onClick={() => setStep(1)}>
-                <ChevronLeft className="mr-2 h-4 w-4" /> Voltar
+                <ChevronLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               <Button onClick={handleSubmit} disabled={loading}>
-                {loading ? 'Criando...' : 'Criar Município'}
+                {loading ? 'Creating...' : 'Create Municipality'}
               </Button>
             </div>
           </CardContent>
@@ -1088,9 +1088,9 @@ interface Principal {
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin',
-  admin_municipality: 'Admin Municipal',
-  operator_tfd: 'Operador TFD',
-  viewer: 'Visualizador',
+  admin_municipality: 'Municipal Admin',
+  operator_tfd: 'TFD Operator',
+  viewer: 'Viewer',
 };
 
 export default function UsersPage() {
@@ -1107,21 +1107,21 @@ export default function UsersPage() {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold">Usuários</h1>
-        <p className="text-muted-foreground">{users.length} usuário(s) cadastrado(s)</p>
+        <h1 className="text-2xl font-bold">Users</h1>
+        <p className="text-muted-foreground">{users.length} user(s) registered</p>
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Carregando...</p>
+        <p className="text-muted-foreground">Loading...</p>
       ) : (
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Usuário</TableHead>
-                <TableHead>Nome</TableHead>
+                <TableHead>Username</TableHead>
+                <TableHead>Name</TableHead>
                 <TableHead>Roles</TableHead>
-                <TableHead>Organização</TableHead>
+                <TableHead>Organization</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -1146,11 +1146,11 @@ export default function UsersPage() {
                   <TableCell>
                     {u.organizations.length > 0
                       ? u.organizations[0].name
-                      : <span className="text-muted-foreground italic">Plataforma</span>}
+                      : <span className="text-muted-foreground italic">Platform</span>}
                   </TableCell>
                   <TableCell>
                     <Badge variant={u.isActive ? 'default' : 'secondary'}>
-                      {u.isActive ? 'Ativo' : 'Inativo'}
+                      {u.isActive ? 'Active' : 'Inactive'}
                     </Badge>
                   </TableCell>
                 </TableRow>

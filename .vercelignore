@@ -1,0 +1,6 @@
+node_modules
+apps/api
+apps/api/node_modules
+packages/*/node_modules
+**/*.log
+.git

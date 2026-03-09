@@ -1,50 +1,50 @@
-# Deploy do Backend no Railway
+# Backend Deployment on Railway
 
-Este guia descreve como fazer o deploy da API (`apps/api`) no Railway com PostgreSQL gerenciado.
-
----
-
-## Pré-requisitos
-
-- Conta no [Railway](https://railway.app)
-- Railway CLI instalado: `npm install -g @railway/cli`
-- Repositório do projeto no GitHub: `Cleberw3b/govmunicipio`
+This guide describes how to deploy the API (`apps/api`) on Railway with managed PostgreSQL.
 
 ---
 
-## 1. Criar o Projeto no Railway
+## Prerequisites
+
+- A [Railway](https://railway.app) account
+- Railway CLI installed: `npm install -g @railway/cli`
+- Project repository on GitHub: `Cleberw3b/govmunicipio`
+
+---
+
+## 1. Create the Project on Railway
 
 ### Via Dashboard
 
-1. Acesse [railway.app](https://railway.app) e clique em **New Project**
-2. Selecione **Deploy from GitHub repo**
-3. Autorize o Railway a acessar sua conta GitHub
-4. Selecione o repositório `Cleberw3b/govmunicipio`
+1. Go to [railway.app](https://railway.app) and click **New Project**
+2. Select **Deploy from GitHub repo**
+3. Authorize Railway to access your GitHub account
+4. Select the repository `Cleberw3b/govmunicipio`
 
 ### Via CLI
 
 ```bash
 railway login
 railway init
-# Selecione "Empty Project" e nomeie como "govmunicipio"
+# Select "Empty Project" and name it "govmunicipio"
 ```
 
 ---
 
-## 2. Adicionar PostgreSQL
+## 2. Add PostgreSQL
 
-No dashboard do Railway, dentro do projeto:
+In the Railway dashboard, inside the project:
 
-1. Clique em **+ New** → **Database** → **Add PostgreSQL**
-2. O Railway criará automaticamente um banco e injetará a variável `DATABASE_URL`
+1. Click **+ New** → **Database** → **Add PostgreSQL**
+2. Railway will automatically create a database and inject the `DATABASE_URL` variable
 
 ---
 
-## 3. Configurar o Serviço da API
+## 3. Configure the API Service
 
 ### Root Directory
 
-No serviço da API, configure o **Root Directory** como `apps/api` nas Settings do serviço.
+In the API service settings, set the **Root Directory** to `apps/api`.
 
 ### Build Command
 
@@ -60,7 +60,7 @@ node dist/main.js
 
 ### Watch Paths
 
-Configure para re-fazer deploy apenas quando arquivos relevantes mudarem:
+Configure to redeploy only when relevant files change:
 
 ```
 apps/api/**
@@ -71,34 +71,34 @@ pnpm-lock.yaml
 
 ---
 
-## 4. Variáveis de Ambiente
+## 4. Environment Variables
 
-Configure as seguintes variáveis de ambiente no Railway (Settings → Variables):
+Set the following environment variables in Railway (Settings → Variables):
 
 ```env
-# Banco de dados (fornecida automaticamente pelo Railway PostgreSQL)
+# Database (automatically provided by Railway PostgreSQL)
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 
 # JWT
-JWT_SECRET=sua_chave_secreta_forte_aqui
+JWT_SECRET=your_strong_secret_key_here
 JWT_EXPIRATION=7d
 
-# Aplicação
+# Application
 NODE_ENV=production
 PORT=3001
 
-# CORS - URL do frontend no Vercel
+# CORS - Frontend URL on Vercel
 CORS_ORIGIN=https://govmunicipio.vercel.app
 ```
 
-> **Importante**: Para `JWT_SECRET`, use uma string aleatória de pelo menos 64 caracteres.
-> Gere com: `openssl rand -base64 64`
+> **Important**: For `JWT_SECRET`, use a random string of at least 64 characters.
+> Generate with: `openssl rand -base64 64`
 
 ---
 
-## 5. Configurar CORS na API
+## 5. Configure CORS in the API
 
-Edite `apps/api/src/main.ts` para ler o CORS_ORIGIN da variável de ambiente:
+Edit `apps/api/src/main.ts` to read CORS_ORIGIN from the environment variable:
 
 ```typescript
 app.enableCors({
@@ -109,69 +109,69 @@ app.enableCors({
 
 ---
 
-## 6. Configurar TypeORM para Produção
+## 6. Configure TypeORM for Production
 
-O `apps/api/src/database/database.module.ts` já usa `synchronize: false` em produção.
-Para aplicar o schema inicial, execute as migrations:
+`apps/api/src/database/database.module.ts` already uses `synchronize: false` in production.
+To apply the initial schema, run the migrations:
 
 ```bash
-# Gerar migration a partir das entities
+# Generate migration from entities
 railway run pnpm typeorm migration:generate -- -d src/database/data-source.ts src/database/migrations/InitialSchema
 
-# Rodar migrations
+# Run migrations
 railway run pnpm typeorm migration:run -- -d src/database/data-source.ts
 ```
 
-Ou, para ambiente de desenvolvimento inicial, defina `DB_SYNCHRONIZE=true` temporariamente nas variáveis de ambiente (remova após o primeiro deploy).
+Or, for initial development, set `DB_SYNCHRONIZE=true` temporarily in the environment variables (remove after the first deploy).
 
 ---
 
-## 7. Executar Seed Inicial
+## 7. Run the Initial Seed
 
-Após o primeiro deploy e com `DB_SYNCHRONIZE=true`:
+After the first deploy with `DB_SYNCHRONIZE=true`:
 
 ```bash
 railway run pnpm seed
 ```
 
-Isso criará:
-- Módulo TFD com statuses (Solicitado, Em Análise, Aprovado, Negado, etc.)
-- Roles e Permissions (super_admin, admin_municipality, operator_tfd, viewer)
-- 8 especialidades médicas
-- Usuário administrador padrão: `admin` / `admin123`
+This will create:
+- TFD module with statuses (Requested, Under Review, Approved, Denied, etc.)
+- Roles and Permissions (super_admin, admin_municipality, operator_tfd, viewer)
+- 8 medical specialties
+- Default admin user: `admin` / `admin123`
 
-> **Segurança**: Troque a senha do admin imediatamente após o primeiro login.
+> **Security**: Change the admin password immediately after the first login.
 
 ---
 
-## 8. Verificar o Deploy
+## 8. Verify the Deployment
 
-Após o deploy, a API estará disponível na URL fornecida pelo Railway (ex: `https://govmunicipio-api.up.railway.app`).
+After deployment, the API will be available at the URL provided by Railway (e.g. `https://govmunicipio-api.up.railway.app`).
 
-Verifique o health check:
+Check the health endpoint:
 
 ```bash
 curl https://govmunicipio-api.up.railway.app/health
-# Esperado: {"status":"ok"}
+# Expected: {"status":"ok"}
 ```
 
 ---
 
-## 9. Conectar o Frontend à API
+## 9. Connect the Frontend to the API
 
-No Vercel, adicione a variável de ambiente no projeto `govmunicipio`:
+In Vercel, add the environment variable to the `govmunicipio` project:
 
 ```env
 NEXT_PUBLIC_API_URL=https://govmunicipio-api.up.railway.app
 ```
 
-E atualize `apps/web/src/lib/api.ts` para usar essa variável:
+And update `apps/web/src/lib/api.ts` to use this variable:
 
 ```typescript
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 ```
 
-Após alterar, refaça o deploy do frontend com:
+After the change, redeploy the frontend with:
 
 ```bash
 vercel deploy --prod
@@ -179,7 +179,7 @@ vercel deploy --prod
 
 ---
 
-## 10. Estrutura Final de Deploy
+## 10. Final Deployment Structure
 
 ```
 GitHub (Cleberw3b/govmunicipio)
@@ -189,24 +189,24 @@ GitHub (Cleberw3b/govmunicipio)
 │
 └── apps/api  ──────────────────►  Railway
                                    URL: https://govmunicipio-api.up.railway.app
-                                   DB: Railway PostgreSQL (gerenciado)
+                                   DB: Railway PostgreSQL (managed)
 ```
 
 ---
 
-## Comandos Úteis
+## Useful Commands
 
 ```bash
-# Ver logs da API no Railway
+# View API logs on Railway
 railway logs
 
-# Abrir dashboard do projeto
+# Open project dashboard
 railway open
 
-# Executar comando no ambiente Railway
-railway run <comando>
+# Run a command in the Railway environment
+railway run <command>
 
-# Ver variáveis de ambiente configuradas
+# View configured environment variables
 railway variables
 ```
 
@@ -214,19 +214,19 @@ railway variables
 
 ## Troubleshooting
 
-### Erro: "Cannot find module '@govmunicipio/shared'"
+### Error: "Cannot find module '@govmunicipio/shared'"
 
-Certifique-se de que o build do monorepo está compilando o pacote shared antes da api.
-Verifique se o `turbo.json` tem `^build` como dependência do pipeline de build.
+Make sure the monorepo build is compiling the shared package before the API.
+Check that `turbo.json` has `^build` as a dependency in the build pipeline.
 
-### Erro: "SSL required" no PostgreSQL
+### Error: "SSL required" on PostgreSQL
 
-O Railway exige SSL. Adicione ao `database.module.ts`:
+Railway requires SSL. Add to `database.module.ts`:
 
 ```typescript
 ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 ```
 
-### Deploy não atualiza após push
+### Deploy not updating after push
 
-Verifique se o Watch Paths está configurado corretamente ou force um redeploy manual no dashboard.
+Check that Watch Paths is configured correctly, or force a manual redeploy from the dashboard.

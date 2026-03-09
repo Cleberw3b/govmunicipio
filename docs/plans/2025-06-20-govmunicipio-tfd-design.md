@@ -1,47 +1,47 @@
-# GovMunicípio — Design do Sistema TFD
+# GovMunicípio — TFD System Design
 
-**Data:** 2025-06-20
-**Módulo:** Tratamento Fora do Domicílio (TFD)
-**Status:** Aprovado
-
----
-
-## 1. Visão Geral
-
-O **GovMunicípio** é uma plataforma de sistemas para prefeituras brasileiras. O primeiro módulo é o **TFD (Tratamento Fora do Domicílio)**, regulamentado pela Portaria SAS nº 055/1999, que cobre transporte e diárias para pacientes que necessitam de tratamento de média/alta complexidade fora do seu município de origem.
-
-### 1.1 Objetivo do MVP
-
-Permitir que operadores de prefeituras criem solicitações de TFD, vinculando paciente, acompanhante (opcional), médico solicitante e hospital destino, com controle de status e rastreabilidade por município.
+**Date:** 2025-06-20
+**Module:** Tratamento Fora do Domicílio (TFD)
+**Status:** Approved
 
 ---
 
-## 2. Stack Tecnológica
+## 1. Overview
 
-| Camada | Tecnologia |
-|--------|-----------|
+**GovMunicípio** is a platform of systems for Brazilian city halls. The first module is **TFD (Tratamento Fora do Domicílio)**, regulated by Ministry of Health Ordinance SAS nº 055/1999, which covers transportation and daily allowances for patients who require medium/high complexity treatment outside their home municipality.
+
+### 1.1 MVP Goal
+
+Allow city hall operators to create TFD requests, linking a patient, companion (optional), requesting doctor, and destination hospital, with status control and traceability per municipality.
+
+---
+
+## 2. Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
 | Monorepo | Turborepo + pnpm workspaces |
 | Frontend | Next.js 15 (App Router), Tailwind CSS, shadcn/ui, React Hook Form, Zod |
 | Backend | NestJS, TypeORM, PostgreSQL, JWT (Passport) |
-| Compartilhado | DTOs, enums, interfaces TypeScript |
-| Deploy FE | Vercel |
-| Deploy BE | Railway |
+| Shared | DTOs, enums, TypeScript interfaces |
+| FE Deploy | Vercel |
+| BE Deploy | Railway |
 | DB | PostgreSQL (Railway managed) |
 
 ---
 
-## 3. Arquitetura
+## 3. Architecture
 
-### 3.1 Estrutura do Monorepo
+### 3.1 Monorepo Structure
 
 ```
 govmunicipio/
 ├── apps/
-│   ├── web/          # Next.js (App Router) — deploy Vercel
-│   └── api/          # NestJS — deploy Railway
+│   ├── web/          # Next.js (App Router) — Vercel deploy
+│   └── api/          # NestJS — Railway deploy
 ├── packages/
-│   ├── shared/       # DTOs, interfaces, enums, validações
-│   └── ui/           # Componentes UI reutilizáveis (futuro)
+│   ├── shared/       # DTOs, interfaces, enums, validations
+│   └── ui/           # Reusable UI components (future)
 ├── docs/
 │   └── plans/
 ├── turbo.json
@@ -49,65 +49,65 @@ govmunicipio/
 └── tsconfig.base.json
 ```
 
-### 3.2 Deploy
+### 3.2 Deployment
 
-- **Frontend (Next.js):** Vercel — deploy automático via GitHub
-- **Backend (NestJS):** Railway — container com PostgreSQL managed
-- **Comunicação:** REST API com JWT Bearer tokens
+- **Frontend (Next.js):** Vercel — automatic deploy via GitHub
+- **Backend (NestJS):** Railway — container with managed PostgreSQL
+- **Communication:** REST API with JWT Bearer tokens
 
 ---
 
-## 4. Modelo de Dados (ERD)
+## 4. Data Model (ERD)
 
-### 4.1 Princípios de Design
+### 4.1 Design Principles
 
-- **Principal** é a entidade central de identidade (padrão Identity Framework)
-- **Person** e **Organization** podem ser Principals
-- **Organization** é a entidade base para Municipality, Hospital e Hotel
-- **Contact** é independente, vinculado via link tables a Person e Organization
-- **Status** é genérico, vinculado a módulos via link table `ModuleStatus`
-- **PersonIdentification** isola PII para compliance com LGPD
-- **Specialty** tem link tables para Doctor e Hospital
+- **Principal** is the central identity entity (Identity Framework pattern)
+- **Person** and **Organization** can be Principals
+- **Organization** is the base entity for Municipality, Hospital, and Hotel
+- **Contact** is independent, linked via link tables to Person and Organization
+- **Status** is generic, linked to modules via the `ModuleStatus` link table
+- **PersonIdentification** isolates PII for LGPD compliance
+- **Specialty** has link tables to Doctor and Hospital
 
-### 4.2 Entidades
+### 4.2 Entities
 
 #### Identity & Auth
-- **Principal** — entidade de autenticação (username, password_hash, person_id?, organization_id?)
-- **Role** — papéis (admin_prefeitura, operator_tfd, etc.)
-- **Permission** — permissões granulares (resource + action)
+- **Principal** — authentication entity (username, password_hash, person_id?, organization_id?)
+- **Role** — roles (admin_prefeitura, operator_tfd, etc.)
+- **Permission** — granular permissions (resource + action)
 - **PrincipalRole** — link Principal ↔ Role
 - **RolePermission** — link Role ↔ Permission
-- **PrincipalOrganization** — link Principal ↔ Organization (genérico)
+- **PrincipalOrganization** — link Principal ↔ Organization (generic)
 
 #### Person
-- **Person** — dados pessoais (first_name, last_name, gender, address_id)
+- **Person** — personal data (first_name, last_name, gender, address_id)
 - **PersonIdentification** — PII (cpf, rg, sus_card_number, date_of_birth)
 
 #### Contact
-- **Contact** — tipo polimórfico (phone, email, whatsapp, etc.)
+- **Contact** — polymorphic type (phone, email, whatsapp, etc.)
 - **PersonContact** — link Person ↔ Contact
 - **OrganizationContact** — link Organization ↔ Contact
 
 #### Address
-- **Address** — endereço reutilizável (street, number, city, state, zip_code)
+- **Address** — reusable address (street, number, city, state, zip_code)
 
 #### Organization
 - **Organization** — base (name, cnpj, address_id)
-- **Municipality** — subtipo (ibge_code, state)
-- **Hospital** — subtipo (cnes_code)
-- **Hotel** — subtipo (municipality_id para convênio)
+- **Municipality** — subtype (ibge_code, state)
+- **Hospital** — subtype (cnes_code)
+- **Hotel** — subtype (municipality_id for agreement)
 
 #### Domain
 - **Doctor** — (person_id, crm)
-- **Specialty** — catálogo de especialidades
+- **Specialty** — specialty catalog
 - **DoctorSpecialty** — link Doctor ↔ Specialty
 - **HospitalSpecialty** — link Hospital ↔ Specialty
-- **Status** — genérico (code, label, sort_order)
-- **Module** — sistemas (tfd, transporte, etc.)
+- **Status** — generic (code, label, sort_order)
+- **Module** — systems (tfd, transport, etc.)
 - **ModuleStatus** — link Module ↔ Status
 
 #### TFD
-- **TfdRequest** — solicitação principal com protocol_number, vínculos a patient (Person), companion (Person?), Doctor, Hospital, Hotel?, Municipality, Principal (criador), Status
+- **TfdRequest** — main request with protocol_number, links to patient (Person), companion (Person?), Doctor, Hospital, Hotel?, Municipality, Principal (creator), Status
 
 ### 4.3 ERD Mermaid
 
@@ -363,14 +363,14 @@ erDiagram
 
 ---
 
-## 5. Autenticação & Autorização
+## 5. Authentication & Authorization
 
-### 5.1 Modelo: RBAC com Permissões Granulares
+### 5.1 Model: RBAC with Granular Permissions
 
-- **Principal** autentica via username/password
-- **JWT** contém: sub (principal_id), organization_id (contexto ativo), roles, permissions
-- **NestJS Guards** validam roles/permissions por endpoint
-- **organization_id** no JWT é resolvido para Municipality ao criar TfdRequest
+- **Principal** authenticates via username/password
+- **JWT** contains: sub (principal_id), organization_id (active context), roles, permissions
+- **NestJS Guards** validate roles/permissions per endpoint
+- **organization_id** in JWT is resolved to Municipality when creating a TfdRequest
 
 ### 5.2 JWT Payload
 
@@ -383,49 +383,49 @@ erDiagram
 }
 ```
 
-### 5.3 Roles Iniciais
+### 5.3 Initial Roles
 
-| Role | Descrição |
-|------|-----------|
-| super_admin | Administrador da plataforma |
-| admin_municipality | Administrador da prefeitura |
-| operator_tfd | Operador de TFD |
-| viewer | Apenas visualização |
+| Role | Description |
+|------|-------------|
+| super_admin | Platform administrator |
+| admin_municipality | City hall administrator |
+| operator_tfd | TFD operator |
+| viewer | Read-only access |
 
 ---
 
 ## 6. Frontend (Next.js)
 
-### 6.1 Estrutura de Rotas
+### 6.1 Route Structure
 
 ```
 /                       → Dashboard
 /auth/login             → Login
-/tfd/requests           → Lista de solicitações TFD
-/tfd/requests/new       → Nova solicitação (multi-step)
-/tfd/requests/[id]      → Detalhe da solicitação
-/admin/users            → Gestão de usuários
-/admin/organizations    → Gestão de organizações
+/tfd/requests           → TFD request list
+/tfd/requests/new       → New request (multi-step)
+/tfd/requests/[id]      → Request detail
+/admin/users            → User management
+/admin/organizations    → Organization management
 ```
 
-### 6.2 Formulário de Nova Solicitação TFD (Multi-step)
+### 6.2 New TFD Request Form (Multi-step)
 
-1. **Paciente** — Buscar por CPF ou cartão SUS, ou cadastrar novo
-2. **Acompanhante** — Opcional, buscar ou cadastrar
-3. **Médico Solicitante** — Selecionar médico e especialidade
-4. **Hospital Destino** — Selecionar hospital e especialidade
-5. **Dados Clínicos** — CID, procedimento, justificativa, datas
-6. **Revisão** — Confirmar e submeter
+1. **Patient** — Search by CPF or SUS card, or register new
+2. **Companion** — Optional, search or register
+3. **Requesting Doctor** — Select doctor and specialty
+4. **Destination Hospital** — Select hospital and specialty
+5. **Clinical Data** — CID, procedure, justification, dates
+6. **Review** — Confirm and submit
 
 ### 6.3 UI
 
 - Tailwind CSS + shadcn/ui
-- React Hook Form + Zod (validação)
-- Responsivo (mobile-first)
+- React Hook Form + Zod (validation)
+- Responsive (mobile-first)
 
 ---
 
-## 7. Status Flow do TFD
+## 7. TFD Status Flow
 
 ```
 draft → pending → approved → scheduled → completed
@@ -436,53 +436,53 @@ draft → pending → approved → scheduled → completed
 
 ---
 
-## 8. Decisões Técnicas
+## 8. Technical Decisions
 
-| Decisão | Escolha | Justificativa |
-|---------|---------|---------------|
-| Monorepo | Turborepo + pnpm | Tipos compartilhados, build otimizado |
-| Frontend | Next.js 15 | SSR, App Router, deploy nativo Vercel |
-| Backend | NestJS | Modular, DI, guards, integração TypeORM |
-| ORM | TypeORM | Decorators, migrations, entities tipadas |
-| DB | PostgreSQL | Robusto, JSON support, bom para dados relacionais |
-| Auth | RBAC + permissões granulares | Flexível para múltiplos módulos futuros |
-| Deploy FE | Vercel | Otimizado para Next.js |
-| Deploy BE | Railway | Container managed para NestJS + PostgreSQL |
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Monorepo | Turborepo + pnpm | Shared types, optimized build |
+| Frontend | Next.js 15 | SSR, App Router, native Vercel deploy |
+| Backend | NestJS | Modular, DI, guards, TypeORM integration |
+| ORM | TypeORM | Decorators, migrations, typed entities |
+| DB | PostgreSQL | Robust, JSON support, good for relational data |
+| Auth | RBAC + granular permissions | Flexible for multiple future modules |
+| FE Deploy | Vercel | Optimized for Next.js |
+| BE Deploy | Railway | Managed container for NestJS + PostgreSQL |
 
 ---
 
-## 9. Entrega em Etapas
+## 9. Delivery Phases
 
-### Etapa 1 — Fundação
+### Phase 1 — Foundation
 - Monorepo setup (Turborepo, pnpm, configs)
-- Package shared (DTOs, interfaces, enums)
+- Shared package (DTOs, interfaces, enums)
 - GitHub repo
 
-### Etapa 2 — Backend Core
+### Phase 2 — Backend Core
 - NestJS scaffold + TypeORM + PostgreSQL
-- Entities base (Principal, Person, Organization, Address, Contact)
+- Base entities (Principal, Person, Organization, Address, Contact)
 - Auth module (JWT, login, guards)
 
-### Etapa 3 — Backend TFD
-- Entities TFD (Doctor, Hospital, Hotel, Municipality, Specialty, Status, Module, TfdRequest)
-- CRUD endpoints TFD
+### Phase 3 — Backend TFD
+- TFD entities (Doctor, Hospital, Hotel, Municipality, Specialty, Status, Module, TfdRequest)
+- TFD CRUD endpoints
 - Seed data
 
-### Etapa 4 — Frontend Core
+### Phase 4 — Frontend Core
 - Next.js scaffold + Tailwind + shadcn/ui
 - Layout, auth pages, dashboard
 - API client
 
-### Etapa 5 — Frontend TFD
-- Formulário multi-step de solicitação TFD
-- Lista e detalhe de solicitações
-- Integração com backend
+### Phase 5 — Frontend TFD
+- TFD multi-step request form
+- Request list and detail views
+- Backend integration
 
-### Etapa 6 — Deploy
+### Phase 6 — Deploy
 - Vercel (frontend)
 - Railway (backend + PostgreSQL)
-- Variáveis de ambiente
+- Environment variables
 
 ---
 
-*Documento aprovado pelo stakeholder em 2025-06-20.*
+*Document approved by stakeholder on 2025-06-20.*

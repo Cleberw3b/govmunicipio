@@ -13,7 +13,7 @@ Two new route groups on the API:
 Frontend changes:
 - `/admin/municipalities` — add Edit button → modal
 - `/admin/users` — add Edit button → modal
-- `/dashboard` sidebar — add "Usuários" link visible only to `admin_municipality`
+- `/dashboard` sidebar — add "Users" link visible only to `admin_municipality`
 - `/dashboard/users` (new page) — user list + modal for create/edit
 
 ## API Design
@@ -50,26 +50,26 @@ Same as POST but updates existing user. Validates that the target principal belo
 ## Frontend Design
 
 ### /admin/municipalities — Edit modal
-- Table row: add "Editar" button (pencil icon)
-- Modal title: "Editar Município"
-- Fields: Nome, CNPJ, Cód. IBGE, Cidade, UF, Rua, Número, Bairro, CEP, Status toggle (Ativo/Inativo)
+- Table row: add "Edit" button (pencil icon)
+- Modal title: "Edit Municipality"
+- Fields: Name, CNPJ, IBGE Code, City, State, Street, Number, Neighborhood, Zip Code, Status toggle (Active/Inactive)
 - On save: `PATCH /admin/municipalities/:id`, refresh list, close modal
 
 ### /admin/users — Edit modal
-- Table row: add "Editar" button
-- Modal title: "Editar Usuário"
-- Fields: Nome, Sobrenome, CPF, Username, Senha (optional — leave blank to keep), Roles (checkboxes), Status toggle
+- Table row: add "Edit" button
+- Modal title: "Edit User"
+- Fields: First Name, Last Name, CPF, Username, Password (optional — leave blank to keep), Roles (checkboxes), Status toggle
 - On save: `PATCH /admin/users/:id`, refresh list, close modal
 
 ### /dashboard sidebar
-- Add "Usuários" link to sidebar, rendered conditionally if `isAdminMunicipality()` (reads roles from localStorage)
+- Add "Users" link to sidebar, rendered conditionally if `isAdminMunicipality()` (reads roles from localStorage)
 - New helper: `isAdminMunicipality(): boolean` in `apps/web/src/lib/admin-auth.ts`
 
 ### /dashboard/users (new page)
-- Table: Username, Nome, Role, Status
-- "Novo Usuário" button → create modal
-- Table row: "Editar" button → edit modal
-- Modal fields: Nome, Sobrenome, CPF, Username, Senha, Role (select: Admin Municipal / Operador TFD / Visualizador), Status toggle
+- Table: Username, Name, Role, Status
+- "New User" button → create modal
+- Table row: "Edit" button → edit modal
+- Modal fields: First Name, Last Name, CPF, Username, Password, Role (select: Municipal Admin / TFD Operator / Viewer), Status toggle
 - Create: `POST /municipality/users`
 - Edit: `PATCH /municipality/users/:id`
 
@@ -106,5 +106,5 @@ admin_municipality creates user
 - `apps/web/src/lib/admin-auth.ts` (add isAdminMunicipality helper)
 - `apps/web/src/app/admin/municipalities/page.tsx` (add edit modal)
 - `apps/web/src/app/admin/users/page.tsx` (add edit modal)
-- `apps/web/src/app/dashboard/layout.tsx` (add conditional Usuários link)
+- `apps/web/src/app/dashboard/layout.tsx` (add conditional Users link)
 - `apps/web/src/app/dashboard/users/page.tsx` (new)
