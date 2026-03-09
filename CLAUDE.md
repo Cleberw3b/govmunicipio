@@ -1,5 +1,16 @@
 # govmunicipio — Project Guidelines
 
+## Security
+
+See [docs/SECURITY.md](docs/SECURITY.md) for full security guidelines.
+
+Key rules:
+- **Never hardcode credentials** — passwords, API keys, tokens, or secrets of any kind in source files, tests, or docs.
+- All secrets go in `.env` files (gitignored). Document required vars in the corresponding `.env.example`.
+- All API routes are protected by `JwtAuthGuard` + `PermissionsGuard`. Never bypass guards on sensitive routes.
+- Use TypeORM named parameters in queries — never string interpolation.
+- Always validate UUIDs from route params before passing to queries (empty string causes `string_to_uuid` crash).
+
 ## Stack
 
 - **API**: NestJS + TypeORM + PostgreSQL (Railway)
