@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BedDouble, Building2, Hospital, Users } from 'lucide-react';
+import { BedDouble, Building2, Hospital, Users, Stethoscope } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiClient } from '@/lib/api';
 
@@ -10,6 +10,7 @@ interface Counts {
   municipalities: number;
   hospitals: number;
   hotels: number;
+  specialties: number;
   users: number;
 }
 
@@ -36,6 +37,13 @@ const CARDS = [
     color: 'text-amber-600',
   },
   {
+    key: 'specialties' as const,
+    label: 'Especialidades',
+    href: '/admin/specialties',
+    icon: Stethoscope,
+    color: 'text-green-600',
+  },
+  {
     key: 'users' as const,
     label: 'Usuários',
     href: '/admin/users',
@@ -52,13 +60,15 @@ export default function AdminPage() {
       apiClient<{ id: string }[]>('/admin/municipalities'),
       apiClient<{ id: string }[]>('/admin/hospitals'),
       apiClient<{ id: string }[]>('/admin/hotels'),
+      apiClient<{ id: string }[]>('/admin/specialties'),
       apiClient<{ id: string }[]>('/admin/users'),
     ])
-      .then(([municipalities, hospitals, hotels, users]) => {
+      .then(([municipalities, hospitals, hotels, specialties, users]) => {
         setCounts({
           municipalities: municipalities.length,
           hospitals: hospitals.length,
           hotels: hotels.length,
+          specialties: specialties.length,
           users: users.length,
         });
       })
@@ -72,7 +82,7 @@ export default function AdminPage() {
         <p className="mt-1 text-muted-foreground">Visão geral da plataforma</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {CARDS.map(({ key, label, href, icon: Icon, color }) => (
           <Link key={key} href={href} className="group">
             <Card className="transition-shadow hover:shadow-md">

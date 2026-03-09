@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BedDouble, Building2, Hospital, Users, LogOut, ShieldAlert } from 'lucide-react';
+import { BedDouble, Building2, Hospital, Users, LogOut, ShieldAlert, Stethoscope } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { isAuthenticated, logout } from '@/lib/auth';
@@ -13,6 +13,7 @@ const adminNav = [
   { name: 'Municípios', href: '/admin/municipalities', icon: Building2 },
   { name: 'Hospitais', href: '/admin/hospitals', icon: Hospital },
   { name: 'Hotéis', href: '/admin/hotels', icon: BedDouble },
+  { name: 'Especialidades', href: '/admin/specialties', icon: Stethoscope },
   { name: 'Usuários', href: '/admin/users', icon: Users },
 ];
 

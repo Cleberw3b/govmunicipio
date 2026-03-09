@@ -7,6 +7,8 @@ import {
   DoctorEntity,
   SpecialtyEntity,
   MunicipalityEntity,
+  PersonEntity,
+  PersonIdentificationEntity,
 } from '../entities';
 import { OrganizationService } from './organization.service';
 import { OrganizationController } from './organization.controller';
@@ -20,6 +22,8 @@ import { OrganizationController } from './organization.controller';
       DoctorEntity,
       SpecialtyEntity,
       MunicipalityEntity,
+      PersonEntity,
+      PersonIdentificationEntity,
     ]),
   ],
   controllers: [OrganizationController],

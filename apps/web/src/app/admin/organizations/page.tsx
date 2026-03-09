@@ -196,8 +196,9 @@ export default function OrganizationsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(org)}>
+                    <Button variant="outline" onClick={() => openEdit(org)}>
                       <Pencil className="h-4 w-4" />
+                        Editar
                     </Button>
                   </TableCell>
                 </TableRow>

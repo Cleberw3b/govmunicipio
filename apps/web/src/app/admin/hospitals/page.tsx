@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Pencil, Plus } from 'lucide-react';
+import { Pencil, Plus, Stethoscope } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -48,19 +49,12 @@ interface HospitalForm {
 }
 
 const EMPTY_FORM: HospitalForm = {
-  name: '',
-  cnpj: '',
-  cnesCode: '',
-  city: '',
-  state: '',
-  street: '',
-  number: '',
-  neighborhood: '',
-  zipCode: '',
-  isActive: true,
+  name: '', cnpj: '', cnesCode: '', city: '', state: '',
+  street: '', number: '', neighborhood: '', zipCode: '', isActive: true,
 };
 
 export default function HospitalsPage() {
+  const router = useRouter();
   const [hospitals, setHospitals] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogMode, setDialogMode] = useState<'create' | 'edit' | null>(null);
@@ -78,34 +72,6 @@ export default function HospitalsPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  function openCreate() {
-    setForm(EMPTY_FORM);
-    setEditingId(null);
-    setDialogMode('create');
-  }
-
-  function openEdit(h: Hospital) {
-    setForm({
-      name: h.organization.name,
-      cnpj: h.organization.cnpj,
-      cnesCode: h.cnesCode,
-      city: h.organization.address?.city ?? '',
-      state: h.organization.address?.state ?? '',
-      street: h.organization.address?.street ?? '',
-      number: h.organization.address?.number ?? '',
-      neighborhood: h.organization.address?.neighborhood ?? '',
-      zipCode: h.organization.address?.zipCode ?? '',
-      isActive: h.organization.isActive,
-    });
-    setEditingId(h.id);
-    setDialogMode('edit');
-  }
-
-  function closeDialog() {
-    setDialogMode(null);
-    setEditingId(null);
-  }
-
   function updateField(field: keyof HospitalForm) {
     return (e: React.ChangeEvent<HTMLInputElement>) =>
       setForm((prev) => ({
@@ -121,39 +87,31 @@ export default function HospitalsPage() {
         await apiClient('/admin/hospitals', {
           method: 'POST',
           body: JSON.stringify({
-            name: form.name,
-            cnpj: form.cnpj,
-            cnesCode: form.cnesCode,
+            name: form.name, cnpj: form.cnpj, cnesCode: form.cnesCode,
             ...(form.city || form.state || form.street ? {
-              city: form.city || undefined,
-              state: form.state || undefined,
-              street: form.street || undefined,
-              number: form.number || undefined,
-              neighborhood: form.neighborhood || undefined,
-              zipCode: form.zipCode || undefined,
+              city: form.city || undefined, state: form.state || undefined,
+              street: form.street || undefined, number: form.number || undefined,
+              neighborhood: form.neighborhood || undefined, zipCode: form.zipCode || undefined,
             } : {}),
           }),
         });
         toast.success('Hospital criado!');
       } else {
-        const body: Record<string, unknown> = {};
+        const body: Record<string, unknown> = { isActive: form.isActive };
         if (form.name) body.name = form.name;
         if (form.cnpj) body.cnpj = form.cnpj;
         if (form.cnesCode) body.cnesCode = form.cnesCode;
-        body.isActive = form.isActive;
         if (form.city) body.city = form.city;
         if (form.state) body.state = form.state;
         if (form.street) body.street = form.street;
         if (form.number) body.number = form.number;
         if (form.neighborhood) body.neighborhood = form.neighborhood;
         if (form.zipCode) body.zipCode = form.zipCode;
-        await apiClient(`/admin/hospitals/${editingId}`, {
-          method: 'PATCH',
-          body: JSON.stringify(body),
-        });
+        await apiClient(`/admin/hospitals/${editingId}`, { method: 'PATCH', body: JSON.stringify(body) });
         toast.success('Hospital atualizado!');
       }
-      closeDialog();
+      setDialogMode(null);
+      setEditingId(null);
       load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Erro ao salvar');
@@ -169,7 +127,7 @@ export default function HospitalsPage() {
           <h1 className="text-2xl font-bold">Hospitais</h1>
           <p className="text-muted-foreground">{hospitals.length} hospital(is) cadastrado(s)</p>
         </div>
-        <Button onClick={openCreate}>
+        <Button onClick={() => { setForm(EMPTY_FORM); setEditingId(null); setDialogMode('create'); }}>
           <Plus className="h-4 w-4" />
           Novo Hospital
         </Button>
@@ -187,7 +145,7 @@ export default function HospitalsPage() {
                 <TableHead>CNES</TableHead>
                 <TableHead>Cidade/Estado</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-16" />
+                <TableHead className="w-72" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -207,9 +165,29 @@ export default function HospitalsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(h)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => router.push(`/admin/hospitals/${h.id}/specialties`)}
+                      >
+                        <Stethoscope className="h-4 w-4" />
+                        Especialidades
+                      </Button>
+                      <Button variant="outline" onClick={() => {
+                        setForm({
+                          name: h.organization.name, cnpj: h.organization.cnpj, cnesCode: h.cnesCode,
+                          city: h.organization.address?.city ?? '', state: h.organization.address?.state ?? '',
+                          street: h.organization.address?.street ?? '', number: h.organization.address?.number ?? '',
+                          neighborhood: h.organization.address?.neighborhood ?? '', zipCode: h.organization.address?.zipCode ?? '',
+                          isActive: h.organization.isActive,
+                        });
+                        setEditingId(h.id);
+                        setDialogMode('edit');
+                      }}>
+                        <Pencil className="h-4 w-4" />
+                        Editar
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -218,14 +196,11 @@ export default function HospitalsPage() {
         </div>
       )}
 
-      <Dialog open={!!dialogMode} onOpenChange={(open) => { if (!open) closeDialog(); }}>
+      <Dialog open={!!dialogMode} onOpenChange={(open) => { if (!open) { setDialogMode(null); setEditingId(null); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {dialogMode === 'create' ? 'Novo Hospital' : 'Editar Hospital'}
-            </DialogTitle>
+            <DialogTitle>{dialogMode === 'create' ? 'Novo Hospital' : 'Editar Hospital'}</DialogTitle>
           </DialogHeader>
-
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Nome *</Label>
@@ -241,9 +216,7 @@ export default function HospitalsPage() {
                 <Input value={form.cnesCode} onChange={updateField('cnesCode')} placeholder="0000000" />
               </div>
             </div>
-
             <p className="text-sm font-medium text-muted-foreground">Endereço (opcional)</p>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Cidade</Label>
@@ -274,26 +247,16 @@ export default function HospitalsPage() {
                 <Input value={form.zipCode} onChange={updateField('zipCode')} />
               </div>
             </div>
-
             {dialogMode === 'edit' && (
               <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="hospitalActive"
-                  checked={form.isActive}
-                  onChange={updateField('isActive')}
-                  className="h-4 w-4"
-                />
+                <input type="checkbox" id="hospitalActive" checked={form.isActive} onChange={updateField('isActive')} className="h-4 w-4" />
                 <Label htmlFor="hospitalActive">Hospital ativo</Label>
               </div>
             )}
           </div>
-
           <DialogFooter>
-            <Button variant="outline" onClick={closeDialog}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving ? 'Salvando...' : 'Salvar'}
-            </Button>
+            <Button variant="outline" onClick={() => { setDialogMode(null); setEditingId(null); }}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando...' : 'Salvar'}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

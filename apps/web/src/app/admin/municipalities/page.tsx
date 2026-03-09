@@ -158,8 +158,9 @@ export default function MunicipalitiesPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(m)}>
+                      <Button variant="outline" onClick={() => openEdit(m)}>
                         <Pencil className="h-4 w-4" />
+                        Editar
                       </Button>
                     </TableCell>
                   </TableRow>

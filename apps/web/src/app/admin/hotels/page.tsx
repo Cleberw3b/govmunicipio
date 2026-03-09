@@ -198,8 +198,9 @@ export default function AdminHotelsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(h)}>
+                      <Button variant="outline" onClick={() => openEdit(h)}>
                         <Pencil className="h-4 w-4" />
+                        Editar
                       </Button>
                     </TableCell>
                   </TableRow>

@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
   UseGuards,
@@ -20,15 +21,19 @@ import { CreateHospitalDto } from './dto/create-hospital.dto';
 import { UpdateHospitalDto } from './dto/update-hospital.dto';
 import { CreateHotelDto } from './dto/create-hotel.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
+import { CreateSpecialtyDto } from './dto/create-specialty.dto';
+import { UpdateSpecialtyDto } from './dto/update-specialty.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import {
+  DoctorEntity,
   HospitalEntity,
   HotelEntity,
   MunicipalityEntity,
   OrganizationEntity,
   PrincipalEntity,
+  SpecialtyEntity,
 } from '../entities';
 
 @Controller('admin')
@@ -146,5 +151,84 @@ export class AdminController {
     @Body() dto: UpdateUserDto,
   ): Promise<PrincipalEntity> {
     return this.adminService.updateUser(id, dto);
+  }
+
+  // ─── Specialties ────────────────────────────────────────────────────────────
+
+  @Get('specialties')
+  @Roles('super_admin', 'admin_municipality')
+  findAllSpecialties(): Promise<SpecialtyEntity[]> {
+    return this.adminService.findAllSpecialties();
+  }
+
+  @Post('specialties')
+  @HttpCode(HttpStatus.CREATED)
+  createSpecialty(@Body() dto: CreateSpecialtyDto): Promise<SpecialtyEntity> {
+    return this.adminService.createSpecialty(dto);
+  }
+
+  @Patch('specialties/:id')
+  @HttpCode(HttpStatus.OK)
+  updateSpecialty(
+    @Param('id') id: string,
+    @Body() dto: UpdateSpecialtyDto,
+  ): Promise<SpecialtyEntity> {
+    return this.adminService.updateSpecialty(id, dto);
+  }
+
+  // ─── Hospital ↔ Specialty ──────────────────────────────────────────────────
+
+  @Get('hospitals/:id/specialties')
+  @Roles('super_admin', 'admin_municipality')
+  getHospitalSpecialties(@Param('id') id: string): Promise<HospitalEntity> {
+    return this.adminService.findHospitalWithSpecialties(id);
+  }
+
+  @Post('hospitals/:id/specialties/:specialtyId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('super_admin', 'admin_municipality')
+  addSpecialtyToHospital(
+    @Param('id') id: string,
+    @Param('specialtyId') specialtyId: string,
+  ): Promise<void> {
+    return this.adminService.addSpecialtyToHospital(id, specialtyId);
+  }
+
+  @Delete('hospitals/:id/specialties/:specialtyId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('super_admin', 'admin_municipality')
+  removeSpecialtyFromHospital(
+    @Param('id') id: string,
+    @Param('specialtyId') specialtyId: string,
+  ): Promise<void> {
+    return this.adminService.removeSpecialtyFromHospital(id, specialtyId);
+  }
+
+  // ─── Doctors ─────────────────────────────────────────────────────────────
+
+  @Get('doctors')
+  @Roles('super_admin', 'admin_municipality')
+  findAllDoctors(): Promise<DoctorEntity[]> {
+    return this.adminService.findAllDoctors();
+  }
+
+  @Post('doctors/:id/specialties/:specialtyId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('super_admin', 'admin_municipality')
+  addSpecialtyToDoctor(
+    @Param('id') id: string,
+    @Param('specialtyId') specialtyId: string,
+  ): Promise<void> {
+    return this.adminService.addSpecialtyToDoctor(id, specialtyId);
+  }
+
+  @Delete('doctors/:id/specialties/:specialtyId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @Roles('super_admin', 'admin_municipality')
+  removeSpecialtyFromDoctor(
+    @Param('id') id: string,
+    @Param('specialtyId') specialtyId: string,
+  ): Promise<void> {
+    return this.adminService.removeSpecialtyFromDoctor(id, specialtyId);
   }
 }

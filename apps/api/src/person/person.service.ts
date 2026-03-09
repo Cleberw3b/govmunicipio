@@ -113,7 +113,7 @@ export class PersonService {
       });
       await manager.save(PersonIdentificationEntity, identificationEntity);
 
-      return this.personRepository.findOneOrFail({
+      return manager.findOneOrFail(PersonEntity, {
         where: { id: person.id },
         relations: {
           identification: true,

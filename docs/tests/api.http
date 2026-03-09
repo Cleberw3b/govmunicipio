@@ -1,0 +1,232 @@
+# govmunicipio API — REST Client Test Collection
+# VS Code: Install "REST Client" extension (humao.rest-client)
+# Run each request with Ctrl+Alt+R / Cmd+Alt+R
+
+@prodUrl = https://api-production-eb2b7.up.railway.app/api/v1
+@stagingUrl = http://localhost:3001/api/v1
+
+# Change this to switch environments
+@baseUrl = {{prodUrl}}
+
+# ─────────────────────────────────────────────
+# AUTH
+# ─────────────────────────────────────────────
+
+### 1. Login as superadmin
+# @name loginSuperadmin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "superadmin",
+  "password": "superadmin123"
+}
+
+###
+@superToken = {{loginSuperadmin.response.body.accessToken}}
+
+### 2. Login as municipality admin (requires a created municipality user)
+# @name loginAdmin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin_municipio",
+  "password": "admin123"
+}
+
+###
+@adminToken = {{loginAdmin.response.body.accessToken}}
+
+# ─────────────────────────────────────────────
+# SUPERADMIN — Hospitals
+# ─────────────────────────────────────────────
+
+### 3. List hospitals (super_admin)
+GET {{baseUrl}}/admin/hospitals
+Authorization: Bearer {{superToken}}
+
+### 4. Create hospital (super_admin)
+# @name createHospital
+POST {{baseUrl}}/admin/hospitals
+Authorization: Bearer {{superToken}}
+Content-Type: application/json
+
+{
+  "cnesCode": "TEST001",
+  "cnpj": "12.345.678/0001-99",
+  "name": "Hospital de Teste HTTP",
+  "city": "São Paulo",
+  "state": "SP"
+}
+
+###
+@hospitalId = {{createHospital.response.body.id}}
+
+### 5. Get hospital by id
+GET {{baseUrl}}/admin/hospitals/{{hospitalId}}
+Authorization: Bearer {{superToken}}
+
+### 6. Update hospital
+PATCH {{baseUrl}}/admin/hospitals/{{hospitalId}}
+Authorization: Bearer {{superToken}}
+Content-Type: application/json
+
+{
+  "name": "Hospital de Teste HTTP (atualizado)"
+}
+
+### 7. Delete hospital
+DELETE {{baseUrl}}/admin/hospitals/{{hospitalId}}
+Authorization: Bearer {{superToken}}
+
+# ─────────────────────────────────────────────
+# SUPERADMIN — Municipalities
+# ─────────────────────────────────────────────
+
+### 8. List municipalities
+GET {{baseUrl}}/admin/municipalities
+Authorization: Bearer {{superToken}}
+
+### 9. Create municipality
+# @name createMunicipality
+POST {{baseUrl}}/admin/municipalities
+Authorization: Bearer {{superToken}}
+Content-Type: application/json
+
+{
+  "name": "Município de Teste HTTP",
+  "state": "SP",
+  "ibgeCode": "9999999"
+}
+
+###
+@municipalityId = {{createMunicipality.response.body.id}}
+
+### 10. Get municipality by id
+GET {{baseUrl}}/admin/municipalities/{{municipalityId}}
+Authorization: Bearer {{superToken}}
+
+### 11. Delete municipality
+DELETE {{baseUrl}}/admin/municipalities/{{municipalityId}}
+Authorization: Bearer {{superToken}}
+
+# ─────────────────────────────────────────────
+# SUPERADMIN — Specialties
+# ─────────────────────────────────────────────
+
+### 12. List specialties
+GET {{baseUrl}}/admin/specialties
+Authorization: Bearer {{superToken}}
+
+### 13. Create specialty
+# @name createSpecialty
+POST {{baseUrl}}/admin/specialties
+Authorization: Bearer {{superToken}}
+Content-Type: application/json
+
+{
+  "name": "Especialidade de Teste HTTP",
+  "code": "01.01.01.001-0"
+}
+
+###
+@specialtyId = {{createSpecialty.response.body.id}}
+
+### 14. Update specialty (no DELETE endpoint)
+PATCH {{baseUrl}}/admin/specialties/{{specialtyId}}
+Authorization: Bearer {{superToken}}
+Content-Type: application/json
+
+{
+  "name": "Especialidade de Teste HTTP (atualizada)"
+}
+
+# ─────────────────────────────────────────────
+# MUNICIPALITY — Pickup Addresses
+# ─────────────────────────────────────────────
+
+### 15. List pickup addresses (admin_municipality)
+GET {{baseUrl}}/municipality/pickup-addresses
+Authorization: Bearer {{adminToken}}
+
+### 16. Create pickup address
+# @name createPickupAddress
+POST {{baseUrl}}/municipality/pickup-addresses
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Terminal Central",
+  "street": "Av. Principal",
+  "number": "100",
+  "neighborhood": "Centro",
+  "city": "Cidade Teste",
+  "state": "SP"
+}
+
+###
+@pickupAddressId = {{createPickupAddress.response.body.id}}
+
+### 17. Delete pickup address
+DELETE {{baseUrl}}/municipality/pickup-addresses/{{pickupAddressId}}
+Authorization: Bearer {{adminToken}}
+
+# ─────────────────────────────────────────────
+# TFD — Full Draft Flow
+# ─────────────────────────────────────────────
+
+### 18. Create TFD draft
+# @name createTfd
+POST {{baseUrl}}/tfd/requests
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "patientPersonId": "PATIENT_UUID_HERE"
+}
+
+###
+@tfdId = {{createTfd.response.body.id}}
+
+### 19. List TFD requests
+GET {{baseUrl}}/tfd/requests
+Authorization: Bearer {{adminToken}}
+
+### 20. Get TFD request by id
+GET {{baseUrl}}/tfd/requests/{{tfdId}}
+Authorization: Bearer {{adminToken}}
+
+### 21. Update TFD draft — clinical data
+PATCH {{baseUrl}}/tfd/requests/{{tfdId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "diagnosisCid": "J18.9",
+  "procedureDescription": "Consulta pneumológica",
+  "justification": "Paciente com tosse persistente há 3 semanas"
+}
+
+### 22. Update TFD draft — travel
+PATCH {{baseUrl}}/tfd/requests/{{tfdId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "travelDate": "2026-04-01",
+  "returnDate": "2026-04-02",
+  "transportType": "BUS",
+  "departureCustomAddress": "Rua das Flores, 10 - Centro"
+}
+
+### 23. Submit TFD (status → PENDING)
+POST {{baseUrl}}/tfd/requests/{{tfdId}}/submit
+Authorization: Bearer {{adminToken}}
+
+# ─────────────────────────────────────────────
+# HEALTH
+# ─────────────────────────────────────────────
+
+### 24. Health check
+GET {{baseUrl}}/health

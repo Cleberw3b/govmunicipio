@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ContactType, Gender } from '@govmunicipio/shared';
 import {
   StatusEntity,
@@ -16,7 +18,6 @@ import {
   HospitalEntity,
   PersonEntity,
   PersonIdentificationEntity,
-  DoctorEntity,
   PrincipalEntity,
 } from '../../entities';
 
@@ -223,26 +224,39 @@ async function seed(): Promise<void> {
     // 6. Specialties
     // -------------------------------------------------------
     const specialtyRepo = queryRunner.manager.getRepository(SpecialtyEntity);
-    const specialtyNames = [
-      'Cardiologia',
-      'Oncologia',
-      'Neurologia',
-      'Ortopedia',
-      'Oftalmologia',
-      'Urologia',
-      'Pediatria',
-      'Ginecologia',
-    ];
-    const specialties = await specialtyRepo.save(
-      specialtyRepo.create(
-        specialtyNames.map((name) => ({ name, isActive: true })),
-      ),
-    );
-    console.log(`Seeded ${specialties.length} specialties.`);
 
-    const findSpecialty = (name: string): SpecialtyEntity => {
-      const spec = specialties.find((s) => s.name === name);
-      if (!spec) throw new Error(`Specialty ${name} not found.`);
+    // Load SIGTAP 2025 procedures from JSON
+    const sigtapPath = path.join(__dirname, 'sigtap-procedures.json');
+    const sigtapData: Array<{ code: string; name: string; groupCode: string; groupName: string }> =
+      JSON.parse(fs.readFileSync(sigtapPath, 'utf-8'));
+
+    // Insert in batches of 500 to avoid memory issues
+    const BATCH_SIZE = 500;
+    let totalInserted = 0;
+    for (let i = 0; i < sigtapData.length; i += BATCH_SIZE) {
+      const batch = sigtapData.slice(i, i + BATCH_SIZE);
+      await specialtyRepo
+        .createQueryBuilder()
+        .insert()
+        .into(SpecialtyEntity)
+        .values(batch.map((p) => ({
+          code: p.code,
+          name: p.name,
+          groupCode: p.groupCode,
+          groupName: p.groupName,
+          price: 0,
+          isActive: true,
+        })))
+        .orIgnore()
+        .execute();
+      totalInserted += batch.length;
+    }
+    console.log(`Seeded ${totalInserted} SIGTAP specialties.`);
+
+    // Pick representative procedures for hospital/doctor associations
+    const allSpecialties = await specialtyRepo.find({ take: 10 });
+    const findSpecialty = (code: string): SpecialtyEntity => {
+      const spec = allSpecialties.find((s) => s.code === code) ?? allSpecialties[0];
       return spec;
     };
 
@@ -359,12 +373,9 @@ async function seed(): Promise<void> {
       cnesCode: '0005622',
       organization: hospitalOrg,
     });
-    hospital.specialties = [
-      findSpecialty('Cardiologia'),
-      findSpecialty('Neurologia'),
-      findSpecialty('Oncologia'),
-      findSpecialty('Ortopedia'),
-    ];
+    // 03.01.01.017-0 = Consulta/Avaliação em Paciente Internado
+    // 03.01.06.004-1 = Consulta em Anestesiologia
+    hospital.specialties = allSpecialties.slice(0, 4);
     await hospitalRepo.save(hospital);
     console.log(`Seeded hospital: ${hospital.cnesCode}`);
 
@@ -392,32 +403,7 @@ async function seed(): Promise<void> {
       }),
     );
 
-    // 12b. Doctor person
-    const doctorPerson = await personRepo.save(
-      personRepo.create({
-        firstName: 'Dr. Carlos',
-        lastName: 'Mendes',
-        gender: Gender.MALE,
-      }),
-    );
-    await identificationRepo.save(
-      identificationRepo.create({
-        cpf: '111.111.111-11',
-        dateOfBirth: '1975-05-15' as unknown as Date,
-        person: doctorPerson,
-      }),
-    );
-    const doctorContact = await contactRepo.save(
-      contactRepo.create({
-        type: ContactType.PHONE,
-        value: '(71) 99999-0001',
-        isPrimary: true,
-      }),
-    );
-    doctorPerson.contacts = [doctorContact];
-    await personRepo.save(doctorPerson);
-
-    // 12c. Patient person
+    // 12b. Patient person
     const patientPerson = await personRepo.save(
       personRepo.create({
         firstName: 'Maria',
@@ -472,20 +458,7 @@ async function seed(): Promise<void> {
     console.log('Seeded 4 persons with identifications and contacts.');
 
     // -------------------------------------------------------
-    // 13. Doctor
-    // -------------------------------------------------------
-    const doctorRepo = queryRunner.manager.getRepository(DoctorEntity);
-    const doctor = doctorRepo.create({
-      crm: '12345-BA',
-      isActive: true,
-      person: doctorPerson,
-    });
-    doctor.specialties = [findSpecialty('Cardiologia')];
-    await doctorRepo.save(doctor);
-    console.log(`Seeded doctor: ${doctor.crm}`);
-
-    // -------------------------------------------------------
-    // 14. Principal (admin user)
+    // 13. Principal (admin user)
     // -------------------------------------------------------
     const principalRepo = queryRunner.manager.getRepository(PrincipalEntity);
     const passwordHash = await bcrypt.hash('admin123', 10);

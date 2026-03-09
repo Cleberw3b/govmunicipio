@@ -20,6 +20,8 @@ import {
   PersonIdentificationEntity,
   PrincipalEntity,
   RoleEntity,
+  SpecialtyEntity,
+  DoctorEntity,
 } from '../entities';
 import { CreateMunicipalityDto } from './dto/create-municipality.dto';
 import { UpdateMunicipalityDto } from './dto/update-municipality.dto';
@@ -31,6 +33,8 @@ import { CreateHospitalDto } from './dto/create-hospital.dto';
 import { UpdateHospitalDto } from './dto/update-hospital.dto';
 import { CreateHotelDto } from './dto/create-hotel.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
+import { CreateSpecialtyDto } from './dto/create-specialty.dto';
+import { UpdateSpecialtyDto } from './dto/update-specialty.dto';
 
 @Injectable()
 export class AdminService {
@@ -46,6 +50,15 @@ export class AdminService {
 
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
+
+    @InjectRepository(SpecialtyEntity)
+    private readonly specialtyRepository: Repository<SpecialtyEntity>,
+
+    @InjectRepository(HospitalEntity)
+    private readonly hospitalRepository: Repository<HospitalEntity>,
+
+    @InjectRepository(DoctorEntity)
+    private readonly doctorRepository: Repository<DoctorEntity>,
 
     private readonly otpService: OtpService,
   ) {}
@@ -280,7 +293,7 @@ export class AdminService {
             manager.create(AddressEntity, {
               city: dto.city ?? '',
               state: dto.state ?? '',
-              street: dto.street,
+              street: dto.street ?? '',
               number: dto.number,
               neighborhood: dto.neighborhood,
               zipCode: dto.zipCode,
@@ -489,7 +502,7 @@ export class AdminService {
             manager.create(AddressEntity, {
               city: dto.city ?? '',
               state: dto.state ?? '',
-              street: dto.street,
+              street: dto.street ?? '',
               number: dto.number,
               neighborhood: dto.neighborhood,
               zipCode: dto.zipCode,
@@ -620,7 +633,7 @@ export class AdminService {
             manager.create(AddressEntity, {
               city: dto.city ?? '',
               state: dto.state ?? '',
-              street: dto.street,
+              street: dto.street ?? '',
               number: dto.number,
               neighborhood: dto.neighborhood,
               zipCode: dto.zipCode,
@@ -795,5 +808,126 @@ export class AdminService {
     });
 
     return this.findMunicipalityById(id);
+  }
+
+  // ─── Specialties ─────────────────────────────────────────────────────────────
+
+  async findAllSpecialties(): Promise<SpecialtyEntity[]> {
+    return this.specialtyRepository.find({ order: { code: 'ASC' } });
+  }
+
+  async createSpecialty(dto: CreateSpecialtyDto): Promise<SpecialtyEntity> {
+    const existing = await this.specialtyRepository.findOne({ where: { code: dto.code } });
+    if (existing) throw new ConflictException(`Specialty with code "${dto.code}" already exists`);
+
+    const groupCode = dto.code.slice(0, 2);
+    const GROUP_NAMES: Record<string, string> = {
+      '01': 'Ações de promoção e prevenção em saúde',
+      '02': 'Procedimentos com finalidade diagnóstica',
+      '03': 'Procedimentos clínicos',
+      '04': 'Procedimentos cirúrgicos',
+      '05': 'Transplantes de órgãos, tecidos e células',
+      '06': 'Medicamentos',
+      '07': 'Órteses, próteses e materiais especiais',
+      '08': 'Ações complementares da atenção à saúde',
+      '09': 'Procedimentos para Ofertas de Cuidados Integrados',
+    };
+
+    return this.specialtyRepository.save(
+      this.specialtyRepository.create({
+        code: dto.code,
+        name: dto.name,
+        groupCode,
+        groupName: GROUP_NAMES[groupCode] ?? null,
+        price: dto.price ?? 0,
+      }),
+    );
+  }
+
+  async updateSpecialty(id: string, dto: UpdateSpecialtyDto): Promise<SpecialtyEntity> {
+    const specialty = await this.specialtyRepository.findOne({ where: { id } });
+    if (!specialty) throw new NotFoundException(`Specialty ${id} not found`);
+
+    if (dto.name !== undefined) specialty.name = dto.name;
+    if (dto.price !== undefined) specialty.price = dto.price;
+    if (dto.isActive !== undefined) specialty.isActive = dto.isActive;
+
+    return this.specialtyRepository.save(specialty);
+  }
+
+  // ─── Hospital ↔ Specialty ─────────────────────────────────────────────────
+
+  async addSpecialtyToHospital(hospitalId: string, specialtyId: string): Promise<void> {
+    const hospital = await this.hospitalRepository.findOne({
+      where: { id: hospitalId },
+      relations: { specialties: true },
+    });
+    if (!hospital) throw new NotFoundException(`Hospital ${hospitalId} not found`);
+
+    const specialty = await this.specialtyRepository.findOne({ where: { id: specialtyId } });
+    if (!specialty) throw new NotFoundException(`Specialty ${specialtyId} not found`);
+
+    const alreadyLinked = hospital.specialties.some((s) => s.id === specialtyId);
+    if (!alreadyLinked) {
+      hospital.specialties = [...hospital.specialties, specialty];
+      await this.hospitalRepository.save(hospital);
+    }
+  }
+
+  async removeSpecialtyFromHospital(hospitalId: string, specialtyId: string): Promise<void> {
+    const hospital = await this.hospitalRepository.findOne({
+      where: { id: hospitalId },
+      relations: { specialties: true },
+    });
+    if (!hospital) throw new NotFoundException(`Hospital ${hospitalId} not found`);
+
+    hospital.specialties = hospital.specialties.filter((s) => s.id !== specialtyId);
+    await this.hospitalRepository.save(hospital);
+  }
+
+  async findHospitalWithSpecialties(hospitalId: string): Promise<HospitalEntity> {
+    const hospital = await this.hospitalRepository.findOne({
+      where: { id: hospitalId },
+      relations: { organization: true, specialties: true },
+    });
+    if (!hospital) throw new NotFoundException(`Hospital ${hospitalId} not found`);
+    return hospital;
+  }
+
+  // ─── Doctor ↔ Specialty ───────────────────────────────────────────────────
+
+  async findAllDoctors(): Promise<DoctorEntity[]> {
+    return this.doctorRepository.find({
+      relations: { person: true, specialties: true },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async addSpecialtyToDoctor(doctorId: string, specialtyId: string): Promise<void> {
+    const doctor = await this.doctorRepository.findOne({
+      where: { id: doctorId },
+      relations: { specialties: true },
+    });
+    if (!doctor) throw new NotFoundException(`Doctor ${doctorId} not found`);
+
+    const specialty = await this.specialtyRepository.findOne({ where: { id: specialtyId } });
+    if (!specialty) throw new NotFoundException(`Specialty ${specialtyId} not found`);
+
+    const alreadyLinked = doctor.specialties.some((s) => s.id === specialtyId);
+    if (!alreadyLinked) {
+      doctor.specialties = [...doctor.specialties, specialty];
+      await this.doctorRepository.save(doctor);
+    }
+  }
+
+  async removeSpecialtyFromDoctor(doctorId: string, specialtyId: string): Promise<void> {
+    const doctor = await this.doctorRepository.findOne({
+      where: { id: doctorId },
+      relations: { specialties: true },
+    });
+    if (!doctor) throw new NotFoundException(`Doctor ${doctorId} not found`);
+
+    doctor.specialties = doctor.specialties.filter((s) => s.id !== specialtyId);
+    await this.doctorRepository.save(doctor);
   }
 }

@@ -1,8 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Check, ChevronsUpDown, Link2, Plus, Search, Unlink } from 'lucide-react';
+import { Check, ChevronsUpDown, Link2, Plus, Search, Stethoscope, Unlink } from 'lucide-react';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -70,6 +71,7 @@ const EMPTY_FORM: CreateForm = {
 };
 
 export default function DashboardHospitalsPage() {
+  const router = useRouter();
   const [linked, setLinked] = useState<Hospital[]>([]);
   const [available, setAvailable] = useState<Hospital[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,7 +194,7 @@ export default function DashboardHospitalsPage() {
                 <TableHead>CNPJ</TableHead>
                 <TableHead>Cidade/UF</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-36" />
+                <TableHead className="w-80" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -219,16 +221,24 @@ export default function DashboardHospitalsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="border-destructive/40 text-destructive hover:bg-destructive hover:text-white"
-                        disabled={unlinking === h.id}
-                        onClick={() => handleUnlink(h.id)}
-                      >
-                        <Unlink className="h-4 w-4" />
-                        {unlinking === h.id ? 'Desvinculando...' : 'Desvincular'}
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => router.push(`/dashboard/hospitals/${h.id}/specialties`)}
+                        >
+                          <Stethoscope className="h-4 w-4" />
+                          Especialidades
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="border-destructive/40 text-destructive hover:bg-destructive hover:text-white"
+                          disabled={unlinking === h.id}
+                          onClick={() => handleUnlink(h.id)}
+                        >
+                          <Unlink className="h-4 w-4" />
+                          {unlinking === h.id ? 'Desvinculando...' : 'Desvincular'}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -272,11 +282,7 @@ export default function DashboardHospitalsPage() {
                 <Label>Estado</Label>
                 <Popover open={stateOpen} onOpenChange={setStateOpen}>
                   <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      className="w-full justify-between font-normal"
-                    >
+                    <Button variant="outline" role="combobox" className="w-full justify-between font-normal">
                       {form.state || 'Selecione...'}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
@@ -345,7 +351,6 @@ export default function DashboardHospitalsPage() {
           <DialogHeader>
             <DialogTitle>Vincular Hospital Existente</DialogTitle>
           </DialogHeader>
-
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -355,13 +360,10 @@ export default function DashboardHospitalsPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-
           <div className="max-h-80 overflow-y-auto rounded-md border">
             {filtered.length === 0 ? (
               <p className="p-4 text-center text-sm text-muted-foreground">
-                {available.length === 0
-                  ? 'Todos os hospitais já estão vinculados.'
-                  : 'Nenhum resultado.'}
+                {available.length === 0 ? 'Todos os hospitais já estão vinculados.' : 'Nenhum resultado.'}
               </p>
             ) : (
               <div className="divide-y">
@@ -374,11 +376,7 @@ export default function DashboardHospitalsPage() {
                         {h.organization.address && ` · ${h.organization.address.city}/${h.organization.address.state}`}
                       </p>
                     </div>
-                    <Button
-                      size="sm"
-                      disabled={linking === h.id}
-                      onClick={() => handleLink(h.id)}
-                    >
+                    <Button size="sm" disabled={linking === h.id} onClick={() => handleLink(h.id)}>
                       {linking === h.id ? 'Vinculando...' : 'Vincular'}
                     </Button>
                   </div>

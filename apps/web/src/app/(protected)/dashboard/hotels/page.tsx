@@ -216,7 +216,6 @@ export default function DashboardHotelsPage() {
                     <TableCell>
                       <Button
                         variant="outline"
-                        size="sm"
                         className="border-destructive/40 text-destructive hover:bg-destructive hover:text-white"
                         disabled={unlinking === h.id}
                         onClick={() => handleUnlink(h.id)}
