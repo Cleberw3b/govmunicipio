@@ -6,7 +6,6 @@ import { ArrowLeft, Loader2, PencilLine } from 'lucide-react';
 import { TfdStatus, TransportType } from '@govmunicipio/shared';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Card,
   CardContent,
@@ -94,21 +93,22 @@ const TRANSPORT_LABELS: Record<TransportType, string> = {
   [TransportType.OTHER]: 'Outro',
 };
 
-function getStatusVariant(
-  code: string,
-): 'default' | 'secondary' | 'destructive' | 'outline' {
+function getStatusClass(code: string): string {
   switch (code) {
     case TfdStatus.APPROVED:
+      return 'bg-green-100 text-green-800 border-green-200';
     case TfdStatus.COMPLETED:
-      return 'default';
+      return 'bg-blue-100 text-blue-800 border-blue-200';
     case TfdStatus.PENDING:
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     case TfdStatus.SCHEDULED:
-      return 'secondary';
+      return 'bg-purple-100 text-purple-800 border-purple-200';
     case TfdStatus.REJECTED:
+      return 'bg-red-100 text-red-800 border-red-200';
     case TfdStatus.CANCELLED:
-      return 'destructive';
+      return 'bg-gray-100 text-gray-600 border-gray-200';
     default:
-      return 'outline';
+      return 'bg-gray-100 text-gray-600 border-gray-200';
   }
 }
 
@@ -242,21 +242,19 @@ export default function TfdRequestDetailPage() {
     <div className="mx-auto max-w-3xl space-y-4">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="-ml-2" onClick={() => router.push('/tfd/requests')}>
-            <ArrowLeft />
-            Voltar
-          </Button>
-          <div>
-            <h1 className="text-xl font-bold">Solicitação TFD</h1>
-            <p className="text-sm text-muted-foreground">{request.protocolNumber}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={getStatusVariant(request.status.code)}>
+      <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <Button variant="ghost" className="-ml-2 self-start" onClick={() => router.push('/tfd/requests')}>
+          <ArrowLeft />
+          Voltar
+        </Button>
+        <div className="flex flex-1 flex-col items-center gap-2 text-center">
+          <h1 className="text-xl font-bold">Solicitação TFD</h1>
+          <p className="text-sm text-muted-foreground">{request.protocolNumber}</p>
+          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold ${getStatusClass(request.status.code)}`}>
             {STATUS_LABELS[request.status.code] ?? request.status.name}
-          </Badge>
+          </span>
+        </div>
+        <div className="self-start">
           {request.status.code === TfdStatus.DRAFT && (
             <Button
               size="sm"
@@ -370,7 +368,7 @@ export default function TfdRequestDetailPage() {
       </Section>
 
       {/* Dados Clínicos */}
-      <Section title="Dados Clínicos" description="Diagnóstico, procedimento e justificativa">
+      <Section title="Dados Clínicos">
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <Field label="CID-10" value={request.diagnosisCid} />
@@ -394,16 +392,7 @@ export default function TfdRequestDetailPage() {
       </Section>
 
       {/* Viagem */}
-      <Section
-        title="Viagem"
-        description="Datas e transporte"
-        aside={
-          <div className="text-right">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Data da Solicitação</p>
-            <p className="text-sm">{formatDate(request.requestDate)}</p>
-          </div>
-        }
-      >
+      <Section title="Viagem">
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {request.travelDate && (
             <Field label="Data da Viagem" value={formatDate(request.travelDate)} />
@@ -422,7 +411,7 @@ export default function TfdRequestDetailPage() {
 
       {/* Custos */}
       {(hasCosts || request.notes) && (
-        <Section title="Custos" description="Transporte, alimentação e hospedagem">
+        <Section title="Custos">
           <div className="space-y-4">
             {hasCosts && (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

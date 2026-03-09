@@ -7,7 +7,6 @@ import { Plus, Loader2 } from 'lucide-react';
 import { TfdStatus } from '@govmunicipio/shared';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -64,21 +63,22 @@ const STATUS_LABELS: Record<string, string> = {
   [TfdStatus.CANCELLED]: 'Cancelado',
 };
 
-function getStatusVariant(
-  code: string,
-): 'default' | 'secondary' | 'destructive' | 'outline' {
+function getStatusClass(code: string): string {
   switch (code) {
     case TfdStatus.APPROVED:
+      return 'bg-green-100 text-green-800 border-green-200';
     case TfdStatus.COMPLETED:
-      return 'default';
+      return 'bg-blue-100 text-blue-800 border-blue-200';
     case TfdStatus.PENDING:
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
     case TfdStatus.SCHEDULED:
-      return 'secondary';
+      return 'bg-purple-100 text-purple-800 border-purple-200';
     case TfdStatus.REJECTED:
+      return 'bg-red-100 text-red-800 border-red-200';
     case TfdStatus.CANCELLED:
-      return 'destructive';
+      return 'bg-gray-100 text-gray-600 border-gray-200';
     default:
-      return 'outline';
+      return 'bg-gray-100 text-gray-600 border-gray-200';
   }
 }
 
@@ -193,9 +193,9 @@ export default function TfdRequestListPage() {
                     '-'}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={getStatusVariant(request.status.code)}>
+                  <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getStatusClass(request.status.code)}`}>
                     {STATUS_LABELS[request.status.code] ?? request.status.name}
-                  </Badge>
+                  </span>
                 </TableCell>
                 <TableCell>{formatDate(request.requestDate)}</TableCell>
               </TableRow>
