@@ -135,12 +135,12 @@ railway run pnpm seed
 ```
 
 This will create:
-- TFD module with statuses (Requested, Under Review, Approved, Denied, etc.)
-- Roles and Permissions (super_admin, admin_municipality, operator_tfd, viewer)
-- 8 medical specialties
-- Default admin user: `admin` / `admin123`
+- TFD module with statuses (Draft, Pending, Approved, Rejected, Scheduled, Completed, Cancelled)
+- Roles and permissions (super_admin, admin_municipality, operator_tfd, viewer) with resource:action format
+- SIGTAP medical specialties (run `pnpm seed:specialties` separately for the full SIGTAP list)
+- Default superadmin user (credentials from env)
 
-> **Security**: Change the admin password immediately after the first login.
+> **Security**: Change all default passwords immediately after the first login. Use the OTP flow to set strong passwords.
 
 ---
 

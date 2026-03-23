@@ -23,6 +23,8 @@ import {
   RoleEntity,
   MunicipalityHospitalLinkEntity,
   MunicipalityHotelLinkEntity,
+  PrincipalRoleLinkEntity,
+  PrincipalOrganizationLinkEntity,
 } from '../entities';
 import { CreateMunicipalityUserDto } from './dto/create-municipality-user.dto';
 import { UpdateMunicipalityUserDto } from './dto/update-municipality-user.dto';
@@ -47,10 +49,12 @@ export class MunicipalityService {
   async findUsers(organizationId: string): Promise<PrincipalEntity[]> {
     return this.principalRepository
       .createQueryBuilder('p')
-      .leftJoinAndSelect('p.roles', 'role')
+      .leftJoinAndSelect('p.roleLinks', 'roleLink')
+      .leftJoinAndSelect('roleLink.role', 'role')
       .leftJoinAndSelect('p.person', 'person')
       .leftJoinAndSelect('person.identification', 'identification')
-      .leftJoinAndSelect('p.organizations', 'org')
+      .leftJoinAndSelect('p.organizationLinks', 'orgLink')
+      .leftJoinAndSelect('orgLink.organization', 'org')
       .where('org.id = :organizationId', { organizationId })
       .orderBy('p.createdAt', 'DESC')
       .getMany();
@@ -98,17 +102,32 @@ export class MunicipalityService {
           }),
         );
 
-        const principal = manager.create(PrincipalEntity, {
-          username: dto.username,
-          passwordHash,
-          isActive: true,
-          email: dto.email ?? null,
-          phone: dto.phone ?? null,
-          person,
-        });
-        principal.roles = [role];
-        principal.organizations = [organization];
-        return manager.save(principal);
+        const principal = await manager.save(
+          manager.create(PrincipalEntity, {
+            username: dto.username,
+            passwordHash,
+            isActive: true,
+            email: dto.email ?? null,
+            phone: dto.phone ?? null,
+            person,
+          }),
+        );
+
+        await manager.save(
+          manager.create(PrincipalRoleLinkEntity, {
+            principal,
+            role,
+          }),
+        );
+
+        await manager.save(
+          manager.create(PrincipalOrganizationLinkEntity, {
+            principal,
+            organization,
+          }),
+        );
+
+        return principal;
       })
       .catch((err: unknown) => {
         if (err instanceof ConflictException) throw err;
@@ -135,16 +154,18 @@ export class MunicipalityService {
   ): Promise<PrincipalEntity> {
     const principal = await this.principalRepository
       .createQueryBuilder('p')
-      .leftJoinAndSelect('p.roles', 'role')
+      .leftJoinAndSelect('p.roleLinks', 'roleLink')
+      .leftJoinAndSelect('roleLink.role', 'role')
       .leftJoinAndSelect('p.person', 'person')
       .leftJoinAndSelect('person.identification', 'identification')
-      .leftJoinAndSelect('p.organizations', 'org')
+      .leftJoinAndSelect('p.organizationLinks', 'orgLink')
+      .leftJoinAndSelect('orgLink.organization', 'org')
       .where('p.id = :id', { id })
       .getOne();
 
     if (!principal) throw new NotFoundException(`User ${id} not found`);
 
-    const belongsToOrg = principal.organizations.some((o) => o.id === organizationId);
+    const belongsToOrg = principal.organizationLinks.some((ol) => ol.organization.id === organizationId);
     if (!belongsToOrg) {
       throw new ForbiddenException('User does not belong to your organization');
     }
@@ -197,20 +218,31 @@ export class MunicipalityService {
         if (!roleEntity) throw new NotFoundException(`Role ${dto.role} not found`);
         const p = await manager.findOne(PrincipalEntity, {
           where: { id },
-          relations: { roles: true },
+          relations: { roleLinks: true },
         });
         if (!p) throw new NotFoundException(`User ${id} not found`);
-        p.roles = [roleEntity];
-        await manager.save(p);
+
+        // Delete existing role links
+        await manager.delete(PrincipalRoleLinkEntity, { principal: { id } });
+
+        // Create new role link
+        await manager.save(
+          manager.create(PrincipalRoleLinkEntity, {
+            principal: p,
+            role: roleEntity,
+          }),
+        );
       }
     });
 
     const updated = await this.principalRepository
       .createQueryBuilder('p')
-      .leftJoinAndSelect('p.roles', 'role')
+      .leftJoinAndSelect('p.roleLinks', 'roleLink')
+      .leftJoinAndSelect('roleLink.role', 'role')
       .leftJoinAndSelect('p.person', 'person')
       .leftJoinAndSelect('person.identification', 'identification')
-      .leftJoinAndSelect('p.organizations', 'org')
+      .leftJoinAndSelect('p.organizationLinks', 'orgLink')
+      .leftJoinAndSelect('orgLink.organization', 'org')
       .where('p.id = :id', { id })
       .getOne();
 
@@ -223,7 +255,8 @@ export class MunicipalityService {
       .getRepository(OrganizationEntity)
       .createQueryBuilder('org')
       .leftJoin('municipality', 'mun', 'mun.organization_id = org.id')
-      .leftJoinAndSelect('org.address', 'address')
+      .leftJoinAndSelect('org.addressLinks', 'addressLinks')
+      .leftJoinAndSelect('addressLinks.address', 'address')
       .where('mun.id IS NULL')
       .orderBy('org.name', 'ASC')
       .getMany();
@@ -360,7 +393,7 @@ export class MunicipalityService {
     if (links.length === 0) return [];
     return this.dataSource.getRepository(HospitalEntity).find({
       where: { id: In(links.map((l) => l.hospitalId)) },
-      relations: { organization: { address: true } },
+      relations: { organization: { addressLinks: { address: true } } },
       order: { createdAt: 'DESC' },
     });
   }
@@ -376,7 +409,8 @@ export class MunicipalityService {
       .getRepository(HospitalEntity)
       .createQueryBuilder('h')
       .leftJoinAndSelect('h.organization', 'org')
-      .leftJoinAndSelect('org.address', 'address')
+      .leftJoinAndSelect('org.addressLinks', 'addressLinks')
+      .leftJoinAndSelect('addressLinks.address', 'address')
       .orderBy('org.name', 'ASC');
 
     if (linkedIds.length > 0) {
@@ -479,7 +513,7 @@ export class MunicipalityService {
     if (links.length === 0) return [];
     return this.dataSource.getRepository(HotelEntity).find({
       where: { id: In(links.map((l) => l.hotelId)) },
-      relations: { organization: { address: true } },
+      relations: { organization: { addressLinks: { address: true } } },
       order: { createdAt: 'DESC' },
     });
   }
@@ -495,7 +529,8 @@ export class MunicipalityService {
       .getRepository(HotelEntity)
       .createQueryBuilder('h')
       .leftJoinAndSelect('h.organization', 'org')
-      .leftJoinAndSelect('org.address', 'address')
+      .leftJoinAndSelect('org.addressLinks', 'addressLinks')
+      .leftJoinAndSelect('addressLinks.address', 'address')
       .orderBy('org.name', 'ASC');
 
     if (linkedIds.length > 0) {
@@ -560,6 +595,6 @@ export class MunicipalityService {
     const repo = this.dataSource.getRepository(PickupAddressEntity);
     const address = await repo.findOne({ where: { id, municipality: { id: municipality.id } } });
     if (!address) throw new NotFoundException(`Pickup address ${id} not found`);
-    await repo.remove(address);
+    await repo.softDelete({ id });
   }
 }

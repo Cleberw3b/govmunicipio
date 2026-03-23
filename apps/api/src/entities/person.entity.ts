@@ -1,17 +1,14 @@
 import {
   Entity,
   Column,
-  ManyToOne,
   OneToOne,
-  ManyToMany,
-  JoinColumn,
-  JoinTable,
+  OneToMany,
 } from 'typeorm';
 import { Gender } from '@govmunicipio/shared';
 import { BaseEntity } from './base.entity';
-import { AddressEntity } from './address.entity';
 import { PersonIdentificationEntity } from './person-identification.entity';
-import { ContactEntity } from './contact.entity';
+import { PersonAddressLinkEntity } from './person-address-link.entity';
+import { PersonContactLinkEntity } from './person-contact-link.entity';
 
 @Entity('person')
 export class PersonEntity extends BaseEntity {
@@ -24,21 +21,23 @@ export class PersonEntity extends BaseEntity {
   @Column({ type: 'varchar' })
   gender!: Gender;
 
-  @ManyToOne(() => AddressEntity, { nullable: true, eager: false })
-  @JoinColumn({ name: 'address_id' })
-  address!: AddressEntity | null;
-
   @OneToOne(
     () => PersonIdentificationEntity,
     (identification) => identification.person,
   )
   identification!: PersonIdentificationEntity;
 
-  @ManyToMany(() => ContactEntity)
-  @JoinTable({
-    name: 'person_contact',
-    joinColumn: { name: 'person_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'contact_id', referencedColumnName: 'id' },
-  })
-  contacts!: ContactEntity[];
+  // Inverse sides (no @JoinColumn — owned by the other entity)
+  @OneToOne('PrincipalEntity', 'person')
+  principal!: any;
+
+  @OneToOne('DoctorEntity', 'person')
+  doctor!: any;
+
+  // Address and contact links (replace direct FK and ManyToMany)
+  @OneToMany(() => PersonAddressLinkEntity, (link) => link.person)
+  addressLinks!: PersonAddressLinkEntity[];
+
+  @OneToMany(() => PersonContactLinkEntity, (link) => link.person)
+  contactLinks!: PersonContactLinkEntity[];
 }

@@ -1,0 +1,122 @@
+appId: com.govmunicipio.web
+---
+# TFD Lifecycle E2E Test:
+# Create draft → Submit → Iniciar Transporte → Finalizar
+#
+# Prerequisites:
+#   - Seeded database with admin user, patient, doctor, hospital
+#   - App running on localhost:3000
+
+# 1. Login as admin
+- openLink: http://localhost:3000/auth/login
+- wait:
+    duration: 2
+- tapOn:
+    id: username-input
+- inputText: admin
+- tapOn:
+    id: password-input
+- inputText: admin123
+- tapOn: Entrar
+- wait:
+    duration: 3
+
+# 2. Navigate to TFD list
+- openLink: http://localhost:3000/tfd/requests
+- wait:
+    duration: 2
+- assertVisible: Solicitações TFD
+
+# 3. Click "Nova Solicitação"
+- tapOn: Nova Solicitação
+- wait:
+    duration: 2
+
+# 4. Fill in patient step (search by CPF)
+- tapOn:
+    id: cpf-input
+- inputText: 222.222.222-22
+- tapOn: Buscar
+- wait:
+    duration: 2
+- tapOn: Próximo
+- wait:
+    duration: 1
+
+# 5. Skip companion
+- tapOn: Pular
+- wait:
+    duration: 1
+
+# 6. Select doctor (first available)
+- tapOn:
+    id: doctor-search-input
+- inputText: Admin
+- wait:
+    duration: 2
+- tapOn: Próximo
+- wait:
+    duration: 1
+
+# 7. Select hospital (first available)
+- tapOn: Próximo
+- wait:
+    duration: 1
+
+# 8. Fill clinical data
+- tapOn:
+    id: diagnosis-cid-input
+- inputText: A00
+- tapOn:
+    id: procedure-description-input
+- inputText: Consulta especializada
+- tapOn:
+    id: justification-input
+- inputText: Necessidade de tratamento fora do domicílio
+- tapOn: Próximo
+- wait:
+    duration: 1
+
+# 9. Fill travel data
+- tapOn:
+    id: transport-type-select
+- tapOn: Ônibus
+- tapOn: Próximo
+- wait:
+    duration: 1
+
+# 10. Submit the request
+- tapOn: Enviar Solicitação
+- wait:
+    duration: 3
+
+# 11. Verify status is "Pendente"
+- assertVisible: Pendente
+
+# 12. Click "Iniciar Transporte"
+- tapOn: Iniciar Transporte
+- wait:
+    duration: 1
+# Confirm the dialog
+- tapOn: Iniciar Transporte
+- wait:
+    duration: 2
+
+# 13. Verify status is "Em Trânsito"
+- assertVisible: Em Trânsito
+
+# 14. Click "Finalizar"
+- tapOn: Finalizar
+- wait:
+    duration: 1
+# Confirm the dialog
+- tapOn: Finalizar
+- wait:
+    duration: 2
+
+# 15. Verify status is "Finalizado"
+- assertVisible: Finalizado
+
+# 16. Verify no action buttons are shown (terminal state)
+- assertNotVisible: Iniciar Transporte
+- assertNotVisible: Cancelar

@@ -19,7 +19,7 @@ export class PersonIdentificationEntity extends BaseEntity {
   @Column({ type: 'varchar', nullable: true, name: 'issuing_authority' })
   issuingAuthority!: string | null;
 
-  @OneToOne(() => PersonEntity, { eager: false })
-  @JoinColumn({ name: 'person_id' })
+  @OneToOne(() => PersonEntity, { eager: false, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'person_id', foreignKeyConstraintName: 'FK_person_identification_person' })
   person!: PersonEntity;
 }

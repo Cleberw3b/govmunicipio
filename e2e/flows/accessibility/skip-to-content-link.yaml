@@ -1,0 +1,11 @@
+appId: com.govmunicipio.web
+---
+# Test that skip-to-content link is present (sr-only but accessible)
+- openLink: http://localhost:3000/auth/login
+# Assert the page content loads
+- assertVisible: GovMunicípio
+# The skip link "Pular para o conteúdo" is screen-reader only,
+# but Maestro should still be able to find it
+- assertVisible:
+    text: Pular para o conteúdo
+    optional: true

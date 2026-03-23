@@ -25,7 +25,7 @@ export class PickupAddressEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 2 })
   state!: string;
 
-  @ManyToOne(() => MunicipalityEntity)
+  @ManyToOne(() => MunicipalityEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'municipality_id' })
   municipality!: MunicipalityEntity;
 }

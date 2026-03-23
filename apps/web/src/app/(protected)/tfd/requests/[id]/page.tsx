@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, PencilLine } from 'lucide-react';
+import { ArrowLeft, Loader2, PencilLine, Truck, CheckCircle2, XCircle } from 'lucide-react';
 import { TfdStatus, TransportType } from '@govmunicipio/shared';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -98,10 +99,8 @@ interface TfdRequestDetail {
 const STATUS_LABELS: Record<string, string> = {
   [TfdStatus.DRAFT]: 'Rascunho',
   [TfdStatus.PENDING]: 'Pendente',
-  [TfdStatus.APPROVED]: 'Aprovado',
-  [TfdStatus.REJECTED]: 'Rejeitado',
-  [TfdStatus.SCHEDULED]: 'Agendado',
-  [TfdStatus.COMPLETED]: 'Concluído',
+  [TfdStatus.IN_TRANSIT]: 'Em Trânsito',
+  [TfdStatus.FINALIZED]: 'Finalizado',
   [TfdStatus.CANCELLED]: 'Cancelado',
 };
 
@@ -116,16 +115,12 @@ const TRANSPORT_LABELS: Record<TransportType, string> = {
 
 function getStatusClass(code: string): string {
   switch (code) {
-    case TfdStatus.APPROVED:
-      return 'bg-green-100 text-green-800 border-green-200';
-    case TfdStatus.COMPLETED:
-      return 'bg-blue-100 text-blue-800 border-blue-200';
     case TfdStatus.PENDING:
       return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    case TfdStatus.SCHEDULED:
-      return 'bg-purple-100 text-purple-800 border-purple-200';
-    case TfdStatus.REJECTED:
-      return 'bg-red-100 text-red-800 border-red-200';
+    case TfdStatus.IN_TRANSIT:
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case TfdStatus.FINALIZED:
+      return 'bg-green-100 text-green-800 border-green-200';
     case TfdStatus.CANCELLED:
       return 'bg-gray-100 text-gray-600 border-gray-200';
     default:
@@ -197,20 +192,82 @@ export default function TfdRequestDetailPage() {
   const [request, setRequest] = useState<TfdRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
-  useEffect(() => {
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    confirmLabel: string;
+    variant: 'default' | 'destructive';
+    onConfirm: () => Promise<void>;
+  }>({
+    open: false,
+    title: '',
+    description: '',
+    confirmLabel: '',
+    variant: 'default',
+    onConfirm: async () => {},
+  });
+
+  const fetchRequest = useCallback(async () => {
     const id = params.id as string;
     if (!id) return;
-
-    apiClient<TfdRequestDetail>(`/tfd/requests/${id}`)
-      .then(setRequest)
-      .catch((err) =>
-        setError(
-          err instanceof Error ? err.message : 'Erro ao carregar solicitação.',
-        ),
-      )
-      .finally(() => setLoading(false));
+    try {
+      const data = await apiClient<TfdRequestDetail>(`/tfd/requests/${id}`);
+      setRequest(data);
+      setError('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao carregar solicitação.');
+    } finally {
+      setLoading(false);
+    }
   }, [params.id]);
+
+  useEffect(() => {
+    fetchRequest();
+  }, [fetchRequest]);
+
+  const handleStatusChange = async (statusCode: string) => {
+    if (!request) return;
+    setActionLoading(true);
+    try {
+      await apiClient(`/tfd/requests/${request.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ statusCode }),
+      });
+      await fetchRequest();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao alterar status.');
+    } finally {
+      setActionLoading(false);
+      setConfirmDialog((prev) => ({ ...prev, open: false }));
+    }
+  };
+
+  const openConfirmDialog = (
+    title: string,
+    description: string,
+    confirmLabel: string,
+    variant: 'default' | 'destructive',
+    statusCode: string,
+  ) => {
+    setConfirmDialog({
+      open: true,
+      title,
+      description,
+      confirmLabel,
+      variant,
+      onConfirm: () => handleStatusChange(statusCode),
+    });
+  };
+
+  const handleEdit = () => {
+    if (!request) return;
+    localStorage.setItem('tfd_draft_id', request.id);
+    router.push('/tfd/requests/new');
+  };
 
   if (loading) {
     return (
@@ -259,6 +316,10 @@ export default function TfdRequestDetailPage() {
     (Number(request.foodCost) || 0) +
     (Number(request.hotelCost) || 0);
 
+  const statusCode = request.status.code;
+  const canEdit = statusCode === TfdStatus.DRAFT || statusCode === TfdStatus.PENDING;
+  const isTerminal = statusCode === TfdStatus.FINALIZED || statusCode === TfdStatus.CANCELLED;
+
   return (
     <div className="mx-auto max-w-3xl space-y-4">
 
@@ -272,24 +333,92 @@ export default function TfdRequestDetailPage() {
           <h1 className="text-xl font-bold">Solicitação TFD</h1>
           <p className="text-sm text-muted-foreground">{request.protocolNumber}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold ${getStatusClass(request.status.code)}`}>
-            {STATUS_LABELS[request.status.code] ?? request.status.name}
-          </span>
-          {request.status.code === TfdStatus.DRAFT && (
+        <span className={`inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold ${getStatusClass(statusCode)}`}>
+          {STATUS_LABELS[statusCode] ?? request.status.name}
+        </span>
+      </div>
+
+      {/* Action Bar */}
+      {!isTerminal && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/30 p-3">
+          {/* Forward action buttons */}
+          {statusCode === TfdStatus.DRAFT && (
             <Button
-              size="sm"
-              onClick={() => {
-                localStorage.setItem('tfd_draft_id', request.id);
-                router.push('/tfd/requests/new');
-              }}
+              variant="outline"
+              onClick={handleEdit}
+              disabled={actionLoading}
             >
-              <PencilLine />
-              Continuar
+              <PencilLine className="h-4 w-4" />
+              Editar
             </Button>
           )}
+
+          {statusCode === TfdStatus.PENDING && (
+            <>
+              <Button
+                onClick={() =>
+                  openConfirmDialog(
+                    'Iniciar Transporte',
+                    'Confirma que o transporte do paciente foi iniciado?',
+                    'Iniciar Transporte',
+                    'default',
+                    'in_transit',
+                  )
+                }
+                disabled={actionLoading}
+              >
+                <Truck className="h-4 w-4" />
+                Iniciar Transporte
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleEdit}
+                disabled={actionLoading}
+              >
+                <PencilLine className="h-4 w-4" />
+                Editar
+              </Button>
+            </>
+          )}
+
+          {statusCode === TfdStatus.IN_TRANSIT && (
+            <Button
+              onClick={() =>
+                openConfirmDialog(
+                  'Finalizar Atendimento',
+                  'Confirma que o atendimento foi concluído?',
+                  'Finalizar',
+                  'default',
+                  'finalized',
+                )
+              }
+              disabled={actionLoading}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              Finalizar
+            </Button>
+          )}
+
+          {/* Cancel button (available for draft, pending, in_transit) */}
+          <Button
+            variant="outline"
+            className="border-destructive/40 text-destructive hover:bg-destructive hover:text-white"
+            onClick={() =>
+              openConfirmDialog(
+                'Cancelar Solicitação',
+                'Tem certeza que deseja cancelar esta solicitação? Esta ação não pode ser desfeita.',
+                'Cancelar Solicitação',
+                'destructive',
+                'cancelled',
+              )
+            }
+            disabled={actionLoading}
+          >
+            <XCircle className="h-4 w-4" />
+            Cancelar
+          </Button>
         </div>
-      </div>
+      )}
 
       {/* Protocol */}
       <Section
@@ -472,6 +601,18 @@ export default function TfdRequestDetailPage() {
           </div>
         </Section>
       )}
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onOpenChange={(open) => setConfirmDialog((prev) => ({ ...prev, open }))}
+        title={confirmDialog.title}
+        description={confirmDialog.description}
+        confirmLabel={confirmDialog.confirmLabel}
+        variant={confirmDialog.variant}
+        onConfirm={confirmDialog.onConfirm}
+        loading={actionLoading}
+      />
 
     </div>
   );

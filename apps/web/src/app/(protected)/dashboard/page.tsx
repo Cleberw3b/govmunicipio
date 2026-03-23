@@ -40,7 +40,7 @@ import {
 interface DashboardStats {
   total: number;
   pending: number;
-  approved: number;
+  inTransit: number;
   thisMonth: number;
   monthlySpending: number;
   averagePerPatient: number;
@@ -62,25 +62,19 @@ interface TfdRequestListItem {
 const STATUS_LABELS: Record<string, string> = {
   [TfdStatus.DRAFT]: 'Rascunho',
   [TfdStatus.PENDING]: 'Pendente',
-  [TfdStatus.APPROVED]: 'Aprovado',
-  [TfdStatus.REJECTED]: 'Rejeitado',
-  [TfdStatus.SCHEDULED]: 'Agendado',
-  [TfdStatus.COMPLETED]: 'Concluído',
+  [TfdStatus.IN_TRANSIT]: 'Em Trânsito',
+  [TfdStatus.FINALIZED]: 'Finalizado',
   [TfdStatus.CANCELLED]: 'Cancelado',
 };
 
 function getStatusClass(code: string): string {
   switch (code) {
-    case TfdStatus.APPROVED:
-      return 'bg-green-100 text-green-800 border-green-200';
-    case TfdStatus.COMPLETED:
-      return 'bg-blue-100 text-blue-800 border-blue-200';
     case TfdStatus.PENDING:
       return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    case TfdStatus.SCHEDULED:
-      return 'bg-purple-100 text-purple-800 border-purple-200';
-    case TfdStatus.REJECTED:
-      return 'bg-red-100 text-red-800 border-red-200';
+    case TfdStatus.IN_TRANSIT:
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case TfdStatus.FINALIZED:
+      return 'bg-green-100 text-green-800 border-green-200';
     case TfdStatus.CANCELLED:
       return 'bg-gray-100 text-gray-600 border-gray-200';
     default:
@@ -145,7 +139,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
     total: 0,
     pending: 0,
-    approved: 0,
+    inTransit: 0,
     thisMonth: 0,
     monthlySpending: 0,
     averagePerPatient: 0,
@@ -164,8 +158,8 @@ export default function DashboardPage() {
       })
       .finally(() => setLoadingStats(false));
 
-    apiClient<TfdRequestListItem[]>('/tfd/requests')
-      .then((data) => setRequests(data.slice(0, 10)))
+    apiClient<{ data: TfdRequestListItem[]; meta: unknown }>('/tfd/requests?limit=10')
+      .then((res) => setRequests(res.data))
       .catch(() => {
         // Error already handled by stats — we just show empty table
       })
@@ -216,9 +210,9 @@ export default function DashboardPage() {
         />
         <StatsCard
           icon={CheckCircle}
-          label="Aprovadas"
-          value={stats.approved}
-          colorClass="text-green-600"
+          label="Em Trânsito"
+          value={stats.inTransit}
+          colorClass="text-blue-600"
           loading={loadingStats}
         />
         <StatsCard

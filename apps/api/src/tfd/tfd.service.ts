@@ -11,11 +11,13 @@ import { CreateTfdRequestDto } from './dto/create-tfd-request.dto';
 import { UpdateTfdRequestDto } from './dto/update-tfd-request.dto';
 import { UpdateTfdCostsDto } from './dto/update-tfd-costs.dto';
 import { WhatsAppService } from './whatsapp.service';
+import { paginate } from '../common';
+import { IPaginatedResponse } from '@govmunicipio/shared';
 
 interface TfdStats {
   total: number;
   pending: number;
-  approved: number;
+  inTransit: number;
   thisMonth: number;
   monthlySpending: number;
   averagePerPatient: number;
@@ -23,6 +25,35 @@ interface TfdStats {
 
 @Injectable()
 export class TfdService {
+  /**
+   * State machine: defines which status codes each status can transition to
+   * via the updateStatus() endpoint.
+   * Note: draft → pending is handled by submit(), not updateStatus().
+   */
+  private static readonly VALID_TRANSITIONS: Record<string, string[]> = {
+    draft: ['cancelled'],
+    pending: ['in_transit', 'cancelled'],
+    in_transit: ['finalized', 'cancelled'],
+    finalized: [],
+    cancelled: [],
+  };
+
+  /**
+   * Fields that can be edited when status is 'pending'.
+   * All other fields are locked after submission.
+   */
+  private static readonly PENDING_EDITABLE_FIELDS: Set<string> = new Set([
+    'travelDate',
+    'returnDate',
+    'pickupAddressId',
+    'returnPickupAddressId',
+    'departureCustomAddress',
+    'transportationCost',
+    'foodCost',
+    'hotelCost',
+    'notes',
+  ]);
+
   constructor(
     @InjectRepository(TfdRequestEntity)
     private readonly tfdRequestRepository: Repository<TfdRequestEntity>,
@@ -48,10 +79,10 @@ export class TfdService {
 
   private getRelations() {
     return {
-      patientPerson: { identification: true, contacts: true },
+      patientPerson: { identification: true, contactLinks: { contact: true } },
       companionPerson: true,
       requestingDoctor: { person: true },
-      destinationHospital: { organization: { address: true }, specialties: true },
+      destinationHospital: { organization: { addressLinks: { address: true } }, specialtyLinks: { specialty: true } },
       specialty: true,
       hotel: true,
       pickupAddress: true,
@@ -116,7 +147,9 @@ export class TfdService {
   async findAll(
     organizationId: string,
     statusFilter?: string,
-  ): Promise<TfdRequestEntity[]> {
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<IPaginatedResponse<TfdRequestEntity>> {
     const municipality =
       await this.organizationService.findMunicipalityByOrganizationId(
         organizationId,
@@ -136,7 +169,7 @@ export class TfdService {
       .where('tfd.municipality_id = :municipalityId', {
         municipalityId: municipality.id,
       })
-      .orderBy('tfd.created_at', 'DESC');
+      .orderBy('tfd.createdAt', 'DESC');
 
     if (statusFilter) {
       queryBuilder.andWhere('status.code = :statusCode', {
@@ -144,7 +177,7 @@ export class TfdService {
       });
     }
 
-    return queryBuilder.getMany();
+    return paginate(queryBuilder, page, limit);
   }
 
   async findOne(
@@ -168,13 +201,37 @@ export class TfdService {
     return tfdRequest;
   }
 
-  async updateDraft(
+  async updateRequest(
     id: string,
     dto: UpdateTfdRequestDto,
     organizationId: string,
   ): Promise<TfdRequestEntity> {
     const tfdRequest = await this.findOne(id, organizationId);
+    const currentStatus = tfdRequest.status?.code;
 
+    // Only draft and pending can be edited
+    if (currentStatus !== 'draft' && currentStatus !== 'pending') {
+      throw new BadRequestException(
+        'Solicitação não pode ser editada neste status.',
+      );
+    }
+
+    // For pending status, restrict which fields can be changed
+    if (currentStatus === 'pending') {
+      const dtoKeys = Object.keys(dto).filter(
+        (key) => (dto as any)[key] !== undefined,
+      );
+      const blockedFields = dtoKeys.filter(
+        (key) => !TfdService.PENDING_EDITABLE_FIELDS.has(key),
+      );
+      if (blockedFields.length > 0) {
+        throw new BadRequestException(
+          `Os seguintes campos não podem ser alterados após o envio: ${blockedFields.join(', ')}`,
+        );
+      }
+    }
+
+    // Apply updates (same logic as before)
     if (dto.companionPersonId !== undefined) {
       tfdRequest.companionPerson = dto.companionPersonId
         ? ({ id: dto.companionPersonId } as any)
@@ -228,6 +285,12 @@ export class TfdService {
   ): Promise<TfdRequestEntity> {
     const tfdRequest = await this.findOne(id, organizationId);
 
+    if (tfdRequest.status?.code !== 'draft') {
+      throw new BadRequestException(
+        'Apenas solicitações em rascunho podem ser enviadas.',
+      );
+    }
+
     if (
       !tfdRequest.requestingDoctor ||
       !tfdRequest.destinationHospital ||
@@ -258,17 +321,30 @@ export class TfdService {
 
   async updateStatus(
     id: string,
-    statusId: string,
+    statusCode: string,
     organizationId: string,
   ): Promise<TfdRequestEntity> {
     const tfdRequest = await this.findOne(id, organizationId);
+    const currentCode = tfdRequest.status?.code;
+
+    if (!currentCode) {
+      throw new BadRequestException('Solicitação sem status atual.');
+    }
+
+    // Validate transition
+    const allowedTransitions = TfdService.VALID_TRANSITIONS[currentCode];
+    if (!allowedTransitions || !allowedTransitions.includes(statusCode)) {
+      throw new BadRequestException(
+        `Transição de status inválida: não é possível alterar de "${currentCode}" para "${statusCode}".`,
+      );
+    }
 
     const status = await this.statusRepository.findOne({
-      where: { id: statusId },
+      where: { code: statusCode },
     });
 
     if (!status) {
-      throw new NotFoundException(`Status with id ${statusId} not found`);
+      throw new NotFoundException(`Status "${statusCode}" not found`);
     }
 
     tfdRequest.status = status;
@@ -313,10 +389,10 @@ export class TfdService {
       },
     });
 
-    const approved = await this.tfdRequestRepository.count({
+    const inTransit = await this.tfdRequestRepository.count({
       where: {
         municipality: { id: municipalityId },
-        status: { code: 'approved' },
+        status: { code: 'in_transit' },
       },
     });
 
@@ -343,6 +419,13 @@ export class TfdService {
     const averagePerPatient =
       thisMonth > 0 ? monthlySpending / thisMonth : 0;
 
-    return { total, pending, approved, thisMonth, monthlySpending, averagePerPatient };
+    return { total, pending, inTransit, thisMonth, monthlySpending, averagePerPatient };
+  }
+
+  async findStatuses(): Promise<StatusEntity[]> {
+    return this.statusRepository.find({
+      where: { isActive: true },
+      order: { sortOrder: 'ASC' },
+    });
   }
 }

@@ -1,14 +1,12 @@
 import {
   Entity,
   Column,
-  ManyToOne,
-  ManyToMany,
-  JoinColumn,
-  JoinTable,
+  OneToOne,
+  OneToMany,
 } from 'typeorm';
 import { BaseEntity } from './base.entity';
-import { AddressEntity } from './address.entity';
-import { ContactEntity } from './contact.entity';
+import { OrganizationAddressLinkEntity } from './organization-address-link.entity';
+import { OrganizationContactLinkEntity } from './organization-contact-link.entity';
 
 @Entity('organization')
 export class OrganizationEntity extends BaseEntity {
@@ -21,15 +19,20 @@ export class OrganizationEntity extends BaseEntity {
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive!: boolean;
 
-  @ManyToOne(() => AddressEntity, { nullable: true })
-  @JoinColumn({ name: 'address_id' })
-  address!: AddressEntity | null;
+  // Inverse sides (no @JoinColumn — owned by the subtype entity)
+  @OneToOne('MunicipalityEntity', 'organization')
+  municipality!: any;
 
-  @ManyToMany(() => ContactEntity)
-  @JoinTable({
-    name: 'organization_contact',
-    joinColumn: { name: 'organization_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'contact_id', referencedColumnName: 'id' },
-  })
-  contacts!: ContactEntity[];
+  @OneToOne('HospitalEntity', 'organization')
+  hospital!: any;
+
+  @OneToOne('HotelEntity', 'organization')
+  hotel!: any;
+
+  // Address and contact links (replace direct FK and ManyToMany)
+  @OneToMany(() => OrganizationAddressLinkEntity, (link) => link.organization)
+  addressLinks!: OrganizationAddressLinkEntity[];
+
+  @OneToMany(() => OrganizationContactLinkEntity, (link) => link.organization)
+  contactLinks!: OrganizationContactLinkEntity[];
 }

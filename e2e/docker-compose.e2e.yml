@@ -1,0 +1,46 @@
+# ─────────────────────────────────────────────────────
+# E2E Test Orchestration
+#
+# Usage:
+#   docker compose -f e2e/docker-compose.e2e.yml up --build --exit-code-from maestro
+#
+# Exit code from `maestro` service determines success/failure:
+#   0 = all tests passed
+#   non-zero = one or more tests failed
+#
+# Results are written to ./e2e/results/ via volume mount.
+# ─────────────────────────────────────────────────────
+
+services:
+  web:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile.web
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
+      - NEXT_PUBLIC_API_URL=http://localhost:3001/api/v1
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  maestro:
+    build:
+      context: ..
+      dockerfile: e2e/Dockerfile.maestro
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      - E2E_BASE_URL=http://web:3000
+      - E2E_TIMEOUT=120
+    volumes:
+      - ./results:/e2e/results
+    # The exit code of this container is the overall E2E result
+    # docker compose --exit-code-from maestro will propagate it

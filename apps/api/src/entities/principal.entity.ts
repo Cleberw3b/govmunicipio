@@ -2,14 +2,14 @@ import {
   Entity,
   Column,
   OneToOne,
-  ManyToMany,
+  OneToMany,
   JoinColumn,
-  JoinTable,
 } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { PersonEntity } from './person.entity';
 import { OrganizationEntity } from './organization.entity';
-import { RoleEntity } from './role.entity';
+import { PrincipalRoleLinkEntity } from './principal-role-link.entity';
+import { PrincipalOrganizationLinkEntity } from './principal-organization-link.entity';
 
 @Entity('principal')
 export class PrincipalEntity extends BaseEntity {
@@ -31,27 +31,18 @@ export class PrincipalEntity extends BaseEntity {
   @Column({ type: 'timestamp', nullable: true, name: 'last_login' })
   lastLogin!: Date | null;
 
-  @OneToOne(() => PersonEntity, { nullable: true })
-  @JoinColumn({ name: 'person_id' })
+  @OneToOne(() => PersonEntity, (person) => person.principal, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'person_id', foreignKeyConstraintName: 'FK_principal_person' })
   person!: PersonEntity | null;
 
-  @OneToOne(() => OrganizationEntity, { nullable: true })
-  @JoinColumn({ name: 'organization_id' })
+  @OneToOne(() => OrganizationEntity, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'organization_id', foreignKeyConstraintName: 'FK_principal_organization' })
   organization!: OrganizationEntity | null;
 
-  @ManyToMany(() => RoleEntity)
-  @JoinTable({
-    name: 'principal_role',
-    joinColumn: { name: 'principal_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'role_id', referencedColumnName: 'id' },
-  })
-  roles!: RoleEntity[];
+  // Role and organization links (replace ManyToMany)
+  @OneToMany(() => PrincipalRoleLinkEntity, (link) => link.principal)
+  roleLinks!: PrincipalRoleLinkEntity[];
 
-  @ManyToMany(() => OrganizationEntity)
-  @JoinTable({
-    name: 'principal_organization',
-    joinColumn: { name: 'principal_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'organization_id', referencedColumnName: 'id' },
-  })
-  organizations!: OrganizationEntity[];
+  @OneToMany(() => PrincipalOrganizationLinkEntity, (link) => link.principal)
+  organizationLinks!: PrincipalOrganizationLinkEntity[];
 }

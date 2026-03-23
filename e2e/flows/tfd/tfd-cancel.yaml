@@ -1,0 +1,54 @@
+appId: com.govmunicipio.web
+---
+# TFD Cancellation E2E Test:
+# Create draft → Submit → Cancel
+#
+# Prerequisites:
+#   - Seeded database with admin user, patient, doctor, hospital
+#   - App running on localhost:3000
+
+# 1. Login as admin
+- openLink: http://localhost:3000/auth/login
+- wait:
+    duration: 2
+- tapOn:
+    id: username-input
+- inputText: admin
+- tapOn:
+    id: password-input
+- inputText: admin123
+- tapOn: Entrar
+- wait:
+    duration: 3
+
+# 2. Navigate to TFD list and find a pending request
+- openLink: http://localhost:3000/tfd/requests
+- wait:
+    duration: 2
+- assertVisible: Solicitações TFD
+
+# 3. Click on the first request in the table
+- tapOn:
+    index: 0
+    id: table-row
+- wait:
+    duration: 2
+
+# 4. Click "Cancelar" button
+- tapOn: Cancelar
+- wait:
+    duration: 1
+
+# 5. Confirm the cancellation dialog
+- assertVisible: Tem certeza que deseja cancelar esta solicitação
+- tapOn: Cancelar Solicitação
+- wait:
+    duration: 2
+
+# 6. Verify status shows "Cancelado"
+- assertVisible: Cancelado
+
+# 7. Verify no action buttons are shown (terminal state)
+- assertNotVisible: Iniciar Transporte
+- assertNotVisible: Finalizar
+- assertNotVisible: Editar

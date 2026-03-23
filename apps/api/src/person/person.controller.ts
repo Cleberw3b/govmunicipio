@@ -7,6 +7,7 @@ import {
   Body,
   UseGuards,
   BadRequestException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { PersonService } from './person.service';
 import { CreatePersonDto } from './dto/create-person.dto';
@@ -47,7 +48,7 @@ export class PersonController {
 
   @Get(':id')
   @Permissions('person:read')
-  async findById(@Param('id') id: string): Promise<PersonEntity> {
+  async findById(@Param('id', ParseUUIDPipe) id: string): Promise<PersonEntity> {
     return this.personService.findById(id);
   }
 }

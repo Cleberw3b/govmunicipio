@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { isAuthenticated, logout } from '@/lib/auth';
 import { isSuperAdmin } from '@/lib/admin-auth';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 const adminNav = [
   { name: 'Municípios', href: '/admin/municipalities', icon: Building2 },
@@ -54,16 +55,19 @@ function AdminSidebar({ pathname }: { pathname: string }) {
 
       <Separator />
 
-      <div className="px-4 py-4">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start"
-          onClick={() => logout()}
-        >
-          <LogOut className="h-4 w-4" />
-          Sair
-        </Button>
+      <div className="px-4 py-4 space-y-3">
+        <div className="flex gap-2">
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 justify-start"
+            onClick={() => logout()}
+          >
+            <LogOut className="h-4 w-4" />
+            Sair
+          </Button>
+        </div>
       </div>
     </div>
   );

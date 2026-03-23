@@ -78,47 +78,47 @@ export class TfdRequestEntity extends BaseEntity {
   @Column({ type: 'text', nullable: true, name: 'departure_custom_address' })
   departureCustomAddress!: string | null;
 
-  @ManyToOne(() => PersonEntity)
+  @ManyToOne(() => PersonEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'patient_person_id' })
   patientPerson!: PersonEntity;
 
-  @ManyToOne(() => PersonEntity, { nullable: true })
+  @ManyToOne(() => PersonEntity, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'companion_person_id' })
   companionPerson!: PersonEntity | null;
 
-  @ManyToOne(() => DoctorEntity, { nullable: true })
+  @ManyToOne(() => DoctorEntity, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'requesting_doctor_id' })
   requestingDoctor!: DoctorEntity | null;
 
-  @ManyToOne(() => HospitalEntity, { nullable: true })
+  @ManyToOne(() => HospitalEntity, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'destination_hospital_id' })
   destinationHospital!: HospitalEntity | null;
 
-  @ManyToOne(() => SpecialtyEntity, { nullable: true })
+  @ManyToOne(() => SpecialtyEntity, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'specialty_id' })
   specialty!: SpecialtyEntity | null;
 
-  @ManyToOne(() => HotelEntity, { nullable: true })
+  @ManyToOne(() => HotelEntity, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'hotel_id' })
   hotel!: HotelEntity | null;
 
-  @ManyToOne(() => PickupAddressEntity, { nullable: true })
+  @ManyToOne(() => PickupAddressEntity, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'pickup_address_id' })
   pickupAddress!: PickupAddressEntity | null;
 
-  @ManyToOne(() => PickupAddressEntity, { nullable: true })
+  @ManyToOne(() => PickupAddressEntity, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'return_pickup_address_id' })
   returnPickupAddress!: PickupAddressEntity | null;
 
-  @ManyToOne(() => MunicipalityEntity)
+  @ManyToOne(() => MunicipalityEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'municipality_id' })
   municipality!: MunicipalityEntity;
 
-  @ManyToOne(() => PrincipalEntity)
+  @ManyToOne(() => PrincipalEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'created_by_principal_id' })
   createdByPrincipal!: PrincipalEntity;
 
-  @ManyToOne(() => StatusEntity)
+  @ManyToOne(() => StatusEntity, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'status_id' })
   status!: StatusEntity;
 }

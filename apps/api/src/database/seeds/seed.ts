@@ -19,6 +19,14 @@ import {
   PersonEntity,
   PersonIdentificationEntity,
   PrincipalEntity,
+  HospitalSpecialtyLinkEntity,
+  PrincipalRoleLinkEntity,
+  PrincipalOrganizationLinkEntity,
+  OrganizationAddressLinkEntity,
+  PersonAddressLinkEntity,
+  PersonContactLinkEntity,
+  OrganizationContactLinkEntity,
+  RolePermissionLinkEntity,
 } from '../../entities';
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -61,11 +69,9 @@ async function seed(): Promise<void> {
     const statusesData = [
       { code: 'draft', label: 'Rascunho', sortOrder: 1, isActive: true },
       { code: 'pending', label: 'Pendente', sortOrder: 2, isActive: true },
-      { code: 'approved', label: 'Aprovado', sortOrder: 3, isActive: true },
-      { code: 'rejected', label: 'Rejeitado', sortOrder: 4, isActive: true },
-      { code: 'scheduled', label: 'Agendado', sortOrder: 5, isActive: true },
-      { code: 'completed', label: 'Concluido', sortOrder: 6, isActive: true },
-      { code: 'cancelled', label: 'Cancelado', sortOrder: 7, isActive: true },
+      { code: 'in_transit', label: 'Em Trânsito', sortOrder: 3, isActive: true },
+      { code: 'finalized', label: 'Finalizado', sortOrder: 4, isActive: true },
+      { code: 'cancelled', label: 'Cancelado', sortOrder: 5, isActive: true },
     ];
     const statuses = await statusRepo.save(statusRepo.create(statusesData));
     console.log(`Seeded ${statuses.length} statuses.`);
@@ -180,45 +186,72 @@ async function seed(): Promise<void> {
     // 5. Roles
     // -------------------------------------------------------
     const roleRepo = queryRunner.manager.getRepository(RoleEntity);
+    const rolePermissionLinkRepo = queryRunner.manager.getRepository(RolePermissionLinkEntity);
 
     const superAdmin = roleRepo.create({
       name: 'super_admin',
       description: 'Super administrador com todas as permissoes',
     });
-    superAdmin.permissions = permissions;
     await roleRepo.save(superAdmin);
+    // Link all permissions to superAdmin
+    for (const perm of permissions) {
+      await rolePermissionLinkRepo.save({
+        roleId: superAdmin.id,
+        permissionId: perm.id,
+      });
+    }
 
     const adminMunicipality = roleRepo.create({
       name: 'admin_municipality',
       description: 'Administrador municipal com todas as permissoes',
     });
-    adminMunicipality.permissions = permissions;
     await roleRepo.save(adminMunicipality);
+    // Link all permissions to adminMunicipality
+    for (const perm of permissions) {
+      await rolePermissionLinkRepo.save({
+        roleId: adminMunicipality.id,
+        permissionId: perm.id,
+      });
+    }
 
     const operatorTfd = roleRepo.create({
       name: 'operator_tfd',
       description: 'Operador do modulo TFD',
     });
-    operatorTfd.permissions = [
+    await roleRepo.save(operatorTfd);
+    // Link specific permissions to operatorTfd
+    const operatorPerms = [
       findPerm('tfd_request', 'create'),
       findPerm('tfd_request', 'read'),
       findPerm('tfd_request', 'update'),
       findPerm('person', 'create'),
       findPerm('person', 'read'),
     ];
-    await roleRepo.save(operatorTfd);
+    for (const perm of operatorPerms) {
+      await rolePermissionLinkRepo.save({
+        roleId: operatorTfd.id,
+        permissionId: perm.id,
+      });
+    }
 
     const viewer = roleRepo.create({
       name: 'viewer',
       description: 'Visualizador somente leitura',
     });
-    viewer.permissions = [
+    await roleRepo.save(viewer);
+    // Link specific permissions to viewer
+    const viewerPerms = [
       findPerm('tfd_request', 'read'),
       findPerm('person', 'read'),
     ];
-    await roleRepo.save(viewer);
+    for (const perm of viewerPerms) {
+      await rolePermissionLinkRepo.save({
+        roleId: viewer.id,
+        permissionId: perm.id,
+      });
+    }
 
-    console.log('Seeded 4 roles.');
+    console.log('Seeded 4 roles with permission links.');
 
     // -------------------------------------------------------
     // 6. Specialties
@@ -303,30 +336,40 @@ async function seed(): Promise<void> {
     // 8. Organizations
     // -------------------------------------------------------
     const orgRepo = queryRunner.manager.getRepository(OrganizationEntity);
+    const orgAddressLinkRepo = queryRunner.manager.getRepository(OrganizationAddressLinkEntity);
 
     const municipalityOrg = await orgRepo.save(
       orgRepo.create({
         name: 'Prefeitura Municipal de Camacari',
         cnpj: '14.109.763/0001-80',
         isActive: true,
-        address: municipalityAddress,
       }),
     );
+    // Link address to municipality organization
+    await orgAddressLinkRepo.save({
+      organizationId: municipalityOrg.id,
+      addressId: municipalityAddress.id,
+    });
 
     const hospitalOrg = await orgRepo.save(
       orgRepo.create({
         name: 'Hospital Geral Roberto Santos',
         cnpj: '13.937.131/0012-41',
         isActive: true,
-        address: hospitalAddress,
       }),
     );
-    console.log('Seeded 2 organizations.');
+    // Link address to hospital organization
+    await orgAddressLinkRepo.save({
+      organizationId: hospitalOrg.id,
+      addressId: hospitalAddress.id,
+    });
+    console.log('Seeded 2 organizations with address links.');
 
     // -------------------------------------------------------
     // 9. Contacts for organizations
     // -------------------------------------------------------
     const contactRepo = queryRunner.manager.getRepository(ContactEntity);
+    const orgContactLinkRepo = queryRunner.manager.getRepository(OrganizationContactLinkEntity);
 
     const municipalityContact = await contactRepo.save(
       contactRepo.create({
@@ -336,8 +379,11 @@ async function seed(): Promise<void> {
         isPrimary: true,
       }),
     );
-    municipalityOrg.contacts = [municipalityContact];
-    await orgRepo.save(municipalityOrg);
+    // Link contact to municipality organization
+    await orgContactLinkRepo.save({
+      organizationId: municipalityOrg.id,
+      contactId: municipalityContact.id,
+    });
 
     const hospitalContact = await contactRepo.save(
       contactRepo.create({
@@ -347,9 +393,12 @@ async function seed(): Promise<void> {
         isPrimary: true,
       }),
     );
-    hospitalOrg.contacts = [hospitalContact];
-    await orgRepo.save(hospitalOrg);
-    console.log('Seeded 2 organization contacts.');
+    // Link contact to hospital organization
+    await orgContactLinkRepo.save({
+      organizationId: hospitalOrg.id,
+      contactId: hospitalContact.id,
+    });
+    console.log('Seeded 2 organization contact links.');
 
     // -------------------------------------------------------
     // 10. Municipality subtype
@@ -369,14 +418,24 @@ async function seed(): Promise<void> {
     // 11. Hospital subtype
     // -------------------------------------------------------
     const hospitalRepo = queryRunner.manager.getRepository(HospitalEntity);
+    const hospitalSpecialtyLinkRepo = queryRunner.manager.getRepository(HospitalSpecialtyLinkEntity);
+
     const hospital = hospitalRepo.create({
       cnesCode: '0005622',
       organization: hospitalOrg,
     });
+    await hospitalRepo.save(hospital);
+
+    // Link specialties to hospital
     // 03.01.01.017-0 = Consulta/Avaliação em Paciente Internado
     // 03.01.06.004-1 = Consulta em Anestesiologia
-    hospital.specialties = allSpecialties.slice(0, 4);
-    await hospitalRepo.save(hospital);
+    const hospitalSpecialties = allSpecialties.slice(0, 4);
+    for (const specialty of hospitalSpecialties) {
+      await hospitalSpecialtyLinkRepo.save({
+        hospitalId: hospital.id,
+        specialtyId: specialty.id,
+      });
+    }
     console.log(`Seeded hospital: ${hospital.cnesCode}`);
 
     // -------------------------------------------------------
@@ -386,6 +445,8 @@ async function seed(): Promise<void> {
     const identificationRepo = queryRunner.manager.getRepository(
       PersonIdentificationEntity,
     );
+    const personAddressLinkRepo = queryRunner.manager.getRepository(PersonAddressLinkEntity);
+    const personContactLinkRepo = queryRunner.manager.getRepository(PersonContactLinkEntity);
 
     // 12a. Admin person
     const adminPerson = await personRepo.save(
@@ -409,9 +470,14 @@ async function seed(): Promise<void> {
         firstName: 'Maria',
         lastName: 'Silva Santos',
         gender: Gender.FEMALE,
-        address: patientAddress,
       }),
     );
+    // Link address to patient
+    await personAddressLinkRepo.save({
+      personId: patientPerson.id,
+      addressId: patientAddress.id,
+    });
+
     await identificationRepo.save(
       identificationRepo.create({
         cpf: '222.222.222-22',
@@ -427,8 +493,11 @@ async function seed(): Promise<void> {
         isPrimary: true,
       }),
     );
-    patientPerson.contacts = [patientContact];
-    await personRepo.save(patientPerson);
+    // Link contact to patient
+    await personContactLinkRepo.save({
+      personId: patientPerson.id,
+      contactId: patientContact.id,
+    });
 
     // 12d. Companion person
     const companionPerson = await personRepo.save(
@@ -452,15 +521,21 @@ async function seed(): Promise<void> {
         isPrimary: true,
       }),
     );
-    companionPerson.contacts = [companionContact];
-    await personRepo.save(companionPerson);
+    // Link contact to companion
+    await personContactLinkRepo.save({
+      personId: companionPerson.id,
+      contactId: companionContact.id,
+    });
 
-    console.log('Seeded 4 persons with identifications and contacts.');
+    console.log('Seeded 4 persons with identifications, address, and contact links.');
 
     // -------------------------------------------------------
     // 13. Principal (admin user)
     // -------------------------------------------------------
     const principalRepo = queryRunner.manager.getRepository(PrincipalEntity);
+    const principalRoleLinkRepo = queryRunner.manager.getRepository(PrincipalRoleLinkEntity);
+    const principalOrganizationLinkRepo = queryRunner.manager.getRepository(PrincipalOrganizationLinkEntity);
+
     const passwordHash = await bcrypt.hash('admin123', 10);
     const adminPrincipal = principalRepo.create({
       username: 'admin',
@@ -469,9 +544,20 @@ async function seed(): Promise<void> {
       person: adminPerson,
       organization: municipalityOrg,
     });
-    adminPrincipal.roles = [adminMunicipality];
-    adminPrincipal.organizations = [municipalityOrg];
     await principalRepo.save(adminPrincipal);
+
+    // Link role to principal
+    await principalRoleLinkRepo.save({
+      principalId: adminPrincipal.id,
+      roleId: adminMunicipality.id,
+    });
+
+    // Link organization to principal
+    await principalOrganizationLinkRepo.save({
+      principalId: adminPrincipal.id,
+      organizationId: municipalityOrg.id,
+    });
+
     console.log(`Seeded principal: ${adminPrincipal.username}`);
 
     // -------------------------------------------------------
@@ -500,9 +586,14 @@ async function seed(): Promise<void> {
       person: superadminPerson,
       organization: null,
     });
-    superadminPrincipal.roles = [superAdmin];
-    superadminPrincipal.organizations = [];
     await principalRepo.save(superadminPrincipal);
+
+    // Link role to superadmin principal
+    await principalRoleLinkRepo.save({
+      principalId: superadminPrincipal.id,
+      roleId: superAdmin.id,
+    });
+
     console.log(`Seeded principal: ${superadminPrincipal.username}`);
 
     // -------------------------------------------------------

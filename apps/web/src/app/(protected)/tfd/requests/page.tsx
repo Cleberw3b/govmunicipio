@@ -46,35 +46,27 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'all', label: 'Todos' },
   { value: TfdStatus.DRAFT, label: 'Rascunho' },
   { value: TfdStatus.PENDING, label: 'Pendente' },
-  { value: TfdStatus.APPROVED, label: 'Aprovado' },
-  { value: TfdStatus.REJECTED, label: 'Rejeitado' },
-  { value: TfdStatus.SCHEDULED, label: 'Agendado' },
-  { value: TfdStatus.COMPLETED, label: 'Concluído' },
+  { value: TfdStatus.IN_TRANSIT, label: 'Em Trânsito' },
+  { value: TfdStatus.FINALIZED, label: 'Finalizado' },
   { value: TfdStatus.CANCELLED, label: 'Cancelado' },
 ];
 
 const STATUS_LABELS: Record<string, string> = {
   [TfdStatus.DRAFT]: 'Rascunho',
   [TfdStatus.PENDING]: 'Pendente',
-  [TfdStatus.APPROVED]: 'Aprovado',
-  [TfdStatus.REJECTED]: 'Rejeitado',
-  [TfdStatus.SCHEDULED]: 'Agendado',
-  [TfdStatus.COMPLETED]: 'Concluído',
+  [TfdStatus.IN_TRANSIT]: 'Em Trânsito',
+  [TfdStatus.FINALIZED]: 'Finalizado',
   [TfdStatus.CANCELLED]: 'Cancelado',
 };
 
 function getStatusClass(code: string): string {
   switch (code) {
-    case TfdStatus.APPROVED:
-      return 'bg-green-100 text-green-800 border-green-200';
-    case TfdStatus.COMPLETED:
-      return 'bg-blue-100 text-blue-800 border-blue-200';
     case TfdStatus.PENDING:
       return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    case TfdStatus.SCHEDULED:
-      return 'bg-purple-100 text-purple-800 border-purple-200';
-    case TfdStatus.REJECTED:
-      return 'bg-red-100 text-red-800 border-red-200';
+    case TfdStatus.IN_TRANSIT:
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case TfdStatus.FINALIZED:
+      return 'bg-green-100 text-green-800 border-green-200';
     case TfdStatus.CANCELLED:
       return 'bg-gray-100 text-gray-600 border-gray-200';
     default:
@@ -106,10 +98,10 @@ export default function TfdRequestListPage() {
     setLoading(true);
     try {
       const query = statusFilter !== 'all' ? `?status=${statusFilter}` : '';
-      const data = await apiClient<TfdRequestListItem[]>(
+      const response = await apiClient<{ data: TfdRequestListItem[]; meta: { page: number; limit: number; total: number; totalPages: number; hasMore: boolean } }>(
         `/tfd/requests${query}`,
       );
-      setRequests(data);
+      setRequests(response.data);
     } catch {
       setRequests([]);
     } finally {

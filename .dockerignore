@@ -1,0 +1,30 @@
+# Dependencies (reinstalled inside container)
+node_modules
+**/node_modules
+
+# Build outputs
+.next
+**/dist
+**/.turbo
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Environment files (secrets)
+.env
+.env.*
+!.env.example
+
+# Test results and artifacts
+e2e/results
+coverage
+
+# OS files
+.DS_Store
+Thumbs.db

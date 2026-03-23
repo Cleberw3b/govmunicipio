@@ -226,8 +226,56 @@ POST {{baseUrl}}/tfd/requests/{{tfdId}}/submit
 Authorization: Bearer {{adminToken}}
 
 # ─────────────────────────────────────────────
+# TFD — Status Transitions (Lifecycle)
+# ─────────────────────────────────────────────
+
+### 24. Start Transport (pending → in_transit)
+PATCH {{baseUrl}}/tfd/requests/{{tfdId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "statusCode": "in_transit"
+}
+
+### 25. Finalize (in_transit → finalized)
+PATCH {{baseUrl}}/tfd/requests/{{tfdId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "statusCode": "finalized"
+}
+
+### 26. Cancel (from pending/in_transit → cancelled)
+PATCH {{baseUrl}}/tfd/requests/{{tfdId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "statusCode": "cancelled"
+}
+
+### 27. Invalid transition (expect 400 — finalized is terminal)
+PATCH {{baseUrl}}/tfd/requests/{{tfdId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "statusCode": "draft"
+}
+
+### 28. List available statuses
+GET {{baseUrl}}/tfd/requests/statuses
+Authorization: Bearer {{adminToken}}
+
+### 29. Get TFD stats
+GET {{baseUrl}}/tfd/requests/stats
+Authorization: Bearer {{adminToken}}
+
+# ─────────────────────────────────────────────
 # HEALTH
 # ─────────────────────────────────────────────
 
-### 24. Health check
+### 30. Health check
 GET {{baseUrl}}/health

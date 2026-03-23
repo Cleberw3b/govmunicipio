@@ -9,7 +9,8 @@ import { Repository, DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 import { OtpService } from '../auth/otp.service';
-import { Gender } from '@govmunicipio/shared';
+import { Gender, IPaginatedResponse } from '@govmunicipio/shared';
+import { paginate } from '../common';
 import {
   AddressEntity,
   OrganizationEntity,
@@ -22,6 +23,11 @@ import {
   RoleEntity,
   SpecialtyEntity,
   DoctorEntity,
+  PrincipalRoleLinkEntity,
+  PrincipalOrganizationLinkEntity,
+  HospitalSpecialtyLinkEntity,
+  DoctorSpecialtyLinkEntity,
+  OrganizationAddressLinkEntity,
 } from '../entities';
 import { CreateMunicipalityDto } from './dto/create-municipality.dto';
 import { UpdateMunicipalityDto } from './dto/update-municipality.dto';
@@ -63,17 +69,24 @@ export class AdminService {
     private readonly otpService: OtpService,
   ) {}
 
-  async findAllMunicipalities(): Promise<MunicipalityEntity[]> {
-    return this.municipalityRepository.find({
-      relations: { organization: { address: true } },
-      order: { createdAt: 'DESC' },
-    });
+  async findAllMunicipalities(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<IPaginatedResponse<MunicipalityEntity>> {
+    const queryBuilder = this.municipalityRepository
+      .createQueryBuilder('municipality')
+      .leftJoinAndSelect('municipality.organization', 'organization')
+      .leftJoinAndSelect('organization.addressLinks', 'addressLinks')
+      .leftJoinAndSelect('addressLinks.address', 'address')
+      .orderBy('municipality.created_at', 'DESC');
+
+    return paginate(queryBuilder, page, limit);
   }
 
   async findMunicipalityById(id: string): Promise<MunicipalityEntity> {
     const municipality = await this.municipalityRepository.findOne({
       where: { id },
-      relations: { organization: { address: true, contacts: true } },
+      relations: { organization: { addressLinks: { address: true }, contactLinks: { contact: true } } },
     });
     if (!municipality) {
       throw new NotFoundException(`Municipality ${id} not found`);
@@ -83,7 +96,7 @@ export class AdminService {
 
   async findAllUsers(): Promise<PrincipalEntity[]> {
     return this.principalRepository.find({
-      relations: { roles: true, organizations: true, person: { identification: true } },
+      relations: { roleLinks: { role: true }, organizationLinks: { organization: true }, person: { identification: true } },
       order: { createdAt: 'DESC' },
     });
   }
@@ -178,9 +191,17 @@ export class AdminService {
         person,
         organization,
       });
-      principal.roles = [adminRole];
-      principal.organizations = [organization];
       await manager.save(principal);
+
+      // Create role and organization links
+      await manager.save(manager.create(PrincipalRoleLinkEntity, {
+        principalId: principal.id,
+        roleId: adminRole.id,
+      }));
+      await manager.save(manager.create(PrincipalOrganizationLinkEntity, {
+        principalId: principal.id,
+        organizationId: organization.id,
+      }));
 
       return mun;
     });
@@ -248,9 +269,25 @@ export class AdminService {
           phone: dto.phone ?? null,
           ...(person ? { person, organization: orgEntity } : {}),
         });
-        principal.roles = roleEntities;
-        principal.organizations = orgEntity ? [orgEntity] : [];
-        return manager.save(principal);
+        const savedPrincipal = await manager.save(principal);
+
+        // Create role links
+        for (const role of roleEntities) {
+          await manager.save(manager.create(PrincipalRoleLinkEntity, {
+            principalId: savedPrincipal.id,
+            roleId: role.id,
+          }));
+        }
+
+        // Create organization link if present
+        if (orgEntity) {
+          await manager.save(manager.create(PrincipalOrganizationLinkEntity, {
+            principalId: savedPrincipal.id,
+            organizationId: orgEntity.id,
+          }));
+        }
+
+        return savedPrincipal;
       })
       .catch((err: unknown) => {
         if (err instanceof ConflictException) throw err;
@@ -274,7 +311,7 @@ export class AdminService {
   async findAllOrganizations(): Promise<OrganizationEntity[]> {
     return this.dataSource
       .getRepository(OrganizationEntity)
-      .find({ relations: { address: true }, order: { name: 'ASC' } });
+      .find({ relations: { addressLinks: { address: true } }, order: { name: 'ASC' } });
   }
 
   async createOrganization(dto: CreateOrganizationDto): Promise<OrganizationEntity> {
@@ -301,14 +338,23 @@ export class AdminService {
           );
         }
 
-        return manager.save(
+        const organization = await manager.save(
           manager.create(OrganizationEntity, {
             name: dto.name,
             cnpj: dto.cnpj,
             isActive: true,
-            ...(address ? { address } : {}),
           }),
         );
+
+        // Create address link if address was created
+        if (address) {
+          await manager.save(manager.create(OrganizationAddressLinkEntity, {
+            organizationId: organization.id,
+            addressId: address.id,
+          }));
+        }
+
+        return organization;
       })
       .catch((err: unknown) => {
         if (err instanceof ConflictException) throw err;
@@ -327,7 +373,7 @@ export class AdminService {
   async updateOrganization(id: string, dto: UpdateOrganizationDto): Promise<OrganizationEntity> {
     const org = await this.dataSource
       .getRepository(OrganizationEntity)
-      .findOne({ where: { id }, relations: { address: true } });
+      .findOne({ where: { id }, relations: { addressLinks: { address: true } } });
     if (!org) throw new NotFoundException(`Organization ${id} not found`);
 
     if (dto.cnpj !== undefined) {
@@ -344,7 +390,8 @@ export class AdminService {
       const hasAddressUpdates = addressFields.some((f) => dto[f] !== undefined);
 
       if (hasAddressUpdates) {
-        if (org.address) {
+        const existingAddress = org.addressLinks?.[0]?.address;
+        if (existingAddress) {
           const addressUpdates: Partial<AddressEntity> = {};
           if (dto.city !== undefined) addressUpdates.city = dto.city;
           if (dto.state !== undefined) addressUpdates.state = dto.state;
@@ -352,7 +399,7 @@ export class AdminService {
           if (dto.number !== undefined) addressUpdates.number = dto.number;
           if (dto.neighborhood !== undefined) addressUpdates.neighborhood = dto.neighborhood;
           if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
-          await manager.update(AddressEntity, { id: org.address.id }, addressUpdates);
+          await manager.update(AddressEntity, { id: existingAddress.id }, addressUpdates);
         } else {
           const address = await manager.save(
             manager.create(AddressEntity, {
@@ -364,7 +411,10 @@ export class AdminService {
               zipCode: dto.zipCode,
             }),
           );
-          await manager.update(OrganizationEntity, { id }, { address });
+          await manager.save(manager.create(OrganizationAddressLinkEntity, {
+            organizationId: id,
+            addressId: address.id,
+          }));
         }
       }
 
@@ -379,13 +429,13 @@ export class AdminService {
 
     return this.dataSource
       .getRepository(OrganizationEntity)
-      .findOne({ where: { id }, relations: { address: true } }) as Promise<OrganizationEntity>;
+      .findOne({ where: { id }, relations: { addressLinks: { address: true } } }) as Promise<OrganizationEntity>;
   }
 
   async updateUser(id: string, dto: UpdateUserDto): Promise<PrincipalEntity> {
     const principal = await this.principalRepository.findOne({
       where: { id },
-      relations: { person: { identification: true }, roles: true },
+      relations: { person: { identification: true }, roleLinks: { role: true } },
     });
     if (!principal) throw new NotFoundException(`User ${id} not found`);
 
@@ -435,24 +485,22 @@ export class AdminService {
           const missing = dto.roles.filter((n) => !found.includes(n));
           throw new NotFoundException(`Roles not found: ${missing.join(', ')}`);
         }
-        const p = await manager.findOne(PrincipalEntity, {
-          where: { id },
-          relations: { roles: true },
-        });
-        p!.roles = roleEntities;
-        await manager.save(p!);
+
+        // Delete existing role links and create new ones
+        await manager.delete(PrincipalRoleLinkEntity, { principalId: id });
+        for (const role of roleEntities) {
+          await manager.save(manager.create(PrincipalRoleLinkEntity, {
+            principalId: id,
+            roleId: role.id,
+          }));
+        }
       }
 
       if (dto.organizationId !== undefined) {
-        const p = await manager.findOne(PrincipalEntity, {
-          where: { id },
-          relations: { organizations: true, organization: true },
-        });
-        if (!p) throw new NotFoundException(`User ${id} not found`);
-
         if (dto.organizationId === null) {
-          p.organization = null;
-          p.organizations = [];
+          // Remove the organization and delete organization link
+          await manager.update(PrincipalEntity, { id }, { organization: null });
+          await manager.delete(PrincipalOrganizationLinkEntity, { principalId: id });
         } else {
           const org = await manager.findOne(OrganizationEntity, {
             where: { id: dto.organizationId },
@@ -462,23 +510,37 @@ export class AdminService {
               `Organization ${dto.organizationId} not found`,
             );
           }
-          p.organization = org;
-          p.organizations = [org];
+
+          // Update organization and recreate the link
+          await manager.update(PrincipalEntity, { id }, { organization: org });
+          await manager.delete(PrincipalOrganizationLinkEntity, { principalId: id });
+          await manager.save(manager.create(PrincipalOrganizationLinkEntity, {
+            principalId: id,
+            organizationId: org.id,
+          }));
         }
-        await manager.save(p);
       }
     });
 
     return this.principalRepository.findOne({
       where: { id },
-      relations: { roles: true, organizations: true, person: { identification: true } },
+      relations: { roleLinks: { role: true }, organizationLinks: { organization: true }, person: { identification: true } },
     }) as Promise<PrincipalEntity>;
   }
 
-  async findAllHospitals(): Promise<HospitalEntity[]> {
-    return this.dataSource
+  async findAllHospitals(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<IPaginatedResponse<HospitalEntity>> {
+    const queryBuilder = this.dataSource
       .getRepository(HospitalEntity)
-      .find({ relations: { organization: { address: true } }, order: { createdAt: 'DESC' } });
+      .createQueryBuilder('hospital')
+      .leftJoinAndSelect('hospital.organization', 'organization')
+      .leftJoinAndSelect('organization.addressLinks', 'addressLinks')
+      .leftJoinAndSelect('addressLinks.address', 'address')
+      .orderBy('hospital.created_at', 'DESC');
+
+    return paginate(queryBuilder, page, limit);
   }
 
   async createHospital(dto: CreateHospitalDto): Promise<HospitalEntity> {
@@ -515,9 +577,16 @@ export class AdminService {
             name: dto.name,
             cnpj: dto.cnpj,
             isActive: true,
-            ...(address ? { address } : {}),
           }),
         );
+
+        // Create address link if address was created
+        if (address) {
+          await manager.save(manager.create(OrganizationAddressLinkEntity, {
+            organizationId: organization.id,
+            addressId: address.id,
+          }));
+        }
 
         return manager.save(
           manager.create(HospitalEntity, { cnesCode: dto.cnesCode, organization }),
@@ -540,7 +609,7 @@ export class AdminService {
   async updateHospital(id: string, dto: UpdateHospitalDto): Promise<HospitalEntity> {
     const hospital = await this.dataSource
       .getRepository(HospitalEntity)
-      .findOne({ where: { id }, relations: { organization: { address: true } } });
+      .findOne({ where: { id }, relations: { organization: { addressLinks: { address: true } } } });
     if (!hospital) throw new NotFoundException(`Hospital ${id} not found`);
 
     if (dto.cnpj !== undefined) {
@@ -566,7 +635,8 @@ export class AdminService {
       const hasAddressUpdates = addressFields.some((f) => dto[f] !== undefined);
 
       if (hasAddressUpdates) {
-        if (hospital.organization.address) {
+        const existingAddress = hospital.organization.addressLinks?.[0]?.address;
+        if (existingAddress) {
           const addressUpdates: Partial<AddressEntity> = {};
           if (dto.city !== undefined) addressUpdates.city = dto.city;
           if (dto.state !== undefined) addressUpdates.state = dto.state;
@@ -574,7 +644,7 @@ export class AdminService {
           if (dto.number !== undefined) addressUpdates.number = dto.number;
           if (dto.neighborhood !== undefined) addressUpdates.neighborhood = dto.neighborhood;
           if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
-          await manager.update(AddressEntity, { id: hospital.organization.address.id }, addressUpdates);
+          await manager.update(AddressEntity, { id: existingAddress.id }, addressUpdates);
         } else {
           const address = await manager.save(
             manager.create(AddressEntity, {
@@ -586,7 +656,10 @@ export class AdminService {
               zipCode: dto.zipCode,
             }),
           );
-          await manager.update(OrganizationEntity, { id: hospital.organization.id }, { address });
+          await manager.save(manager.create(OrganizationAddressLinkEntity, {
+            organizationId: hospital.organization.id,
+            addressId: address.id,
+          }));
         }
       }
 
@@ -605,16 +678,22 @@ export class AdminService {
 
     return this.dataSource
       .getRepository(HospitalEntity)
-      .findOne({ where: { id }, relations: { organization: { address: true } } }) as Promise<HospitalEntity>;
+      .findOne({ where: { id }, relations: { organization: { addressLinks: { address: true } } } }) as Promise<HospitalEntity>;
   }
 
-  async findAllHotels(): Promise<HotelEntity[]> {
-    return this.dataSource
+  async findAllHotels(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<IPaginatedResponse<HotelEntity>> {
+    const queryBuilder = this.dataSource
       .getRepository(HotelEntity)
-      .find({
-        relations: { organization: { address: true } },
-        order: { createdAt: 'DESC' },
-      });
+      .createQueryBuilder('hotel')
+      .leftJoinAndSelect('hotel.organization', 'organization')
+      .leftJoinAndSelect('organization.addressLinks', 'addressLinks')
+      .leftJoinAndSelect('addressLinks.address', 'address')
+      .orderBy('hotel.created_at', 'DESC');
+
+    return paginate(queryBuilder, page, limit);
   }
 
   async createHotel(dto: CreateHotelDto): Promise<HotelEntity> {
@@ -646,9 +725,16 @@ export class AdminService {
             name: dto.name,
             cnpj: dto.cnpj,
             isActive: true,
-            ...(address ? { address } : {}),
           }),
         );
+
+        // Create address link if address was created
+        if (address) {
+          await manager.save(manager.create(OrganizationAddressLinkEntity, {
+            organizationId: organization.id,
+            addressId: address.id,
+          }));
+        }
 
         return manager.save(
           manager.create(HotelEntity, { organization }),
@@ -671,7 +757,7 @@ export class AdminService {
   async updateHotel(id: string, dto: UpdateHotelDto): Promise<HotelEntity> {
     const hotel = await this.dataSource
       .getRepository(HotelEntity)
-      .findOne({ where: { id }, relations: { organization: { address: true } } });
+      .findOne({ where: { id }, relations: { organization: { addressLinks: { address: true } } } });
     if (!hotel) throw new NotFoundException(`Hotel ${id} not found`);
 
     if (dto.cnpj !== undefined) {
@@ -688,7 +774,8 @@ export class AdminService {
       const hasAddressUpdates = addressFields.some((f) => dto[f] !== undefined);
 
       if (hasAddressUpdates) {
-        if (hotel.organization.address) {
+        const existingAddress = hotel.organization.addressLinks?.[0]?.address;
+        if (existingAddress) {
           const addressUpdates: Partial<AddressEntity> = {};
           if (dto.city !== undefined) addressUpdates.city = dto.city;
           if (dto.state !== undefined) addressUpdates.state = dto.state;
@@ -696,7 +783,7 @@ export class AdminService {
           if (dto.number !== undefined) addressUpdates.number = dto.number;
           if (dto.neighborhood !== undefined) addressUpdates.neighborhood = dto.neighborhood;
           if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
-          await manager.update(AddressEntity, { id: hotel.organization.address.id }, addressUpdates);
+          await manager.update(AddressEntity, { id: existingAddress.id }, addressUpdates);
         } else {
           const address = await manager.save(
             manager.create(AddressEntity, {
@@ -708,7 +795,10 @@ export class AdminService {
               zipCode: dto.zipCode,
             }),
           );
-          await manager.update(OrganizationEntity, { id: hotel.organization.id }, { address });
+          await manager.save(manager.create(OrganizationAddressLinkEntity, {
+            organizationId: hotel.organization.id,
+            addressId: address.id,
+          }));
         }
       }
 
@@ -723,7 +813,7 @@ export class AdminService {
 
     return this.dataSource
       .getRepository(HotelEntity)
-      .findOne({ where: { id }, relations: { organization: { address: true } } }) as Promise<HotelEntity>;
+      .findOne({ where: { id }, relations: { organization: { addressLinks: { address: true } } } }) as Promise<HotelEntity>;
   }
 
   async updateMunicipality(
@@ -768,7 +858,8 @@ export class AdminService {
       );
 
       if (hasAddressUpdates) {
-        if (!municipality.organization.address) {
+        const existingAddress = municipality.organization.addressLinks?.[0]?.address;
+        if (!existingAddress) {
           throw new BadRequestException(
             'Municipality has no address to update',
           );
@@ -782,7 +873,7 @@ export class AdminService {
         if (dto.zipCode !== undefined) addressUpdates.zipCode = dto.zipCode;
         await manager.update(
           AddressEntity,
-          { id: municipality.organization.address.id },
+          { id: existingAddress.id },
           addressUpdates,
         );
       }
@@ -860,35 +951,36 @@ export class AdminService {
   async addSpecialtyToHospital(hospitalId: string, specialtyId: string): Promise<void> {
     const hospital = await this.hospitalRepository.findOne({
       where: { id: hospitalId },
-      relations: { specialties: true },
+      relations: { specialtyLinks: true },
     });
     if (!hospital) throw new NotFoundException(`Hospital ${hospitalId} not found`);
 
     const specialty = await this.specialtyRepository.findOne({ where: { id: specialtyId } });
     if (!specialty) throw new NotFoundException(`Specialty ${specialtyId} not found`);
 
-    const alreadyLinked = hospital.specialties.some((s) => s.id === specialtyId);
+    const alreadyLinked = hospital.specialtyLinks.some((sl) => sl.specialtyId === specialtyId);
     if (!alreadyLinked) {
-      hospital.specialties = [...hospital.specialties, specialty];
-      await this.hospitalRepository.save(hospital);
+      await this.dataSource
+        .getRepository(HospitalSpecialtyLinkEntity)
+        .save({ hospitalId, specialtyId });
     }
   }
 
   async removeSpecialtyFromHospital(hospitalId: string, specialtyId: string): Promise<void> {
     const hospital = await this.hospitalRepository.findOne({
       where: { id: hospitalId },
-      relations: { specialties: true },
     });
     if (!hospital) throw new NotFoundException(`Hospital ${hospitalId} not found`);
 
-    hospital.specialties = hospital.specialties.filter((s) => s.id !== specialtyId);
-    await this.hospitalRepository.save(hospital);
+    await this.dataSource
+      .getRepository(HospitalSpecialtyLinkEntity)
+      .softDelete({ hospitalId, specialtyId });
   }
 
   async findHospitalWithSpecialties(hospitalId: string): Promise<HospitalEntity> {
     const hospital = await this.hospitalRepository.findOne({
       where: { id: hospitalId },
-      relations: { organization: true, specialties: true },
+      relations: { organization: true, specialtyLinks: { specialty: true } },
     });
     if (!hospital) throw new NotFoundException(`Hospital ${hospitalId} not found`);
     return hospital;
@@ -898,7 +990,7 @@ export class AdminService {
 
   async findAllDoctors(): Promise<DoctorEntity[]> {
     return this.doctorRepository.find({
-      relations: { person: true, specialties: true },
+      relations: { person: true, specialtyLinks: { specialty: true } },
       order: { createdAt: 'DESC' },
     });
   }
@@ -906,28 +998,29 @@ export class AdminService {
   async addSpecialtyToDoctor(doctorId: string, specialtyId: string): Promise<void> {
     const doctor = await this.doctorRepository.findOne({
       where: { id: doctorId },
-      relations: { specialties: true },
+      relations: { specialtyLinks: true },
     });
     if (!doctor) throw new NotFoundException(`Doctor ${doctorId} not found`);
 
     const specialty = await this.specialtyRepository.findOne({ where: { id: specialtyId } });
     if (!specialty) throw new NotFoundException(`Specialty ${specialtyId} not found`);
 
-    const alreadyLinked = doctor.specialties.some((s) => s.id === specialtyId);
+    const alreadyLinked = doctor.specialtyLinks.some((sl) => sl.specialtyId === specialtyId);
     if (!alreadyLinked) {
-      doctor.specialties = [...doctor.specialties, specialty];
-      await this.doctorRepository.save(doctor);
+      await this.dataSource
+        .getRepository(DoctorSpecialtyLinkEntity)
+        .save({ doctorId, specialtyId });
     }
   }
 
   async removeSpecialtyFromDoctor(doctorId: string, specialtyId: string): Promise<void> {
     const doctor = await this.doctorRepository.findOne({
       where: { id: doctorId },
-      relations: { specialties: true },
     });
     if (!doctor) throw new NotFoundException(`Doctor ${doctorId} not found`);
 
-    doctor.specialties = doctor.specialties.filter((s) => s.id !== specialtyId);
-    await this.doctorRepository.save(doctor);
+    await this.dataSource
+      .getRepository(DoctorSpecialtyLinkEntity)
+      .softDelete({ doctorId, specialtyId });
   }
 }

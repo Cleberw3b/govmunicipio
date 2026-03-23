@@ -38,9 +38,16 @@ grep -rn "apikey\|api_key\|secret\s*=" apps/ --include="*.ts" -i
 | Variable | Where defined | Used by |
 |----------|---------------|---------|
 | `DATABASE_URL` | Railway (production) / `.env` (local) | API (TypeORM) |
+| `DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME` | `.env` (local fallback) | API (TypeORM, when `DATABASE_URL` is absent) |
 | `JWT_SECRET` | Railway / `.env` | API (auth) |
-| `JWT_EXPIRATION` | Railway / `.env` | API (auth) |
+| `JWT_EXPIRATION` | Railway / `.env` | API (auth, default: `1h`) |
 | `CORS_ORIGIN` | Railway / `.env` | API |
+| `NODE_ENV` | Railway / `.env` | API (toggles SSL, synchronize, logging) |
+| `PORT` | Railway / `.env` | API (default: `3001`) |
+| `DB_SYNCHRONIZE` | Railway / `.env` | API (enables TypeORM auto-sync, use only in dev) |
+| `WHATSAPP_API_URL` | Railway / `.env` | API (TFD WhatsApp notifications) |
+| `WHATSAPP_API_KEY` | Railway / `.env` | API (TFD WhatsApp notifications) |
+| `WHATSAPP_INSTANCE` | Railway / `.env` | API (TFD WhatsApp notifications) |
 | `NEXT_PUBLIC_API_URL` | Vercel / `.env.local` | Frontend |
 | `SUPERADMIN_PASSWORD` | `docs/tests/.env` | Smoke tests |
 | `ADMIN_USERNAME` / `ADMIN_PASSWORD` | `docs/tests/.env` | Smoke tests |
@@ -56,6 +63,8 @@ Never log environment variables. Never return them in API responses.
 - Role separation is enforced by route prefix: `super_admin` → `/admin/*`, `admin_municipality` → `/dashboard/*` and `/tfd/*`.
 - JWT tokens must not carry sensitive PII beyond what's needed (current payload: `sub`, `organizationId`, `roles`, `permissions`).
 - Token expiration must be set (`JWT_EXPIRATION`). Never use non-expiring tokens in production.
+- OTP codes expire in 15 minutes and are single-use. Previous OTP codes for the same principal are invalidated on new request.
+- Passwords are hashed with bcryptjs (10 salt rounds). Never store plain-text passwords.
 
 ---
 

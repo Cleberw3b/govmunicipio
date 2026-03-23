@@ -1,7 +1,11 @@
-import { IsUUID, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsIn } from 'class-validator';
 
 export class UpdateTfdStatusDto {
-  @IsUUID()
+  @IsString()
   @IsNotEmpty()
-  statusId!: string;
+  @IsIn(['in_transit', 'finalized', 'cancelled'], {
+    message:
+      'statusCode deve ser um dos valores: in_transit, finalized, cancelled',
+  })
+  statusCode!: string;
 }

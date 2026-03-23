@@ -1,0 +1,9 @@
+appId: com.govmunicipio.web
+---
+# Test that /tfd/requests/new requires authentication
+- openLink: http://localhost:3000/tfd/requests/new
+- wait:
+    duration: 2
+# Should be redirected to login page
+- assertVisible: GovMunicípio
+- assertVisible: Entre com suas credenciais para acessar o sistema

@@ -7,7 +7,8 @@ import {
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
-import { OtpTokenEntity, PrincipalEntity } from '../entities';
+import { OtpTokenEntity } from '../entities/otp-token.entity';
+import { PrincipalEntity } from '../entities';
 
 @Injectable()
 export class OtpService {

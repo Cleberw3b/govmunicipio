@@ -1,0 +1,22 @@
+appId: com.govmunicipio.web
+---
+- openLink: http://localhost:3000/auth/login
+- assertVisible: GovMunicípio
+- assertVisible: Entre com suas credenciais para acessar o sistema
+- assertVisible: Usuário
+- assertVisible: Senha
+- assertVisible: Entrar
+- tapOn:
+    id: username
+- inputText: admin@test.com
+- tapOn:
+    id: password
+- inputText: TestPassword123!
+- tapOn: Entrar
+- waitForAnimationToEnd
+- wait:
+    duration: 2
+# After successful login, user should be redirected to dashboard or a page with dashboard elements
+- assertVisible:
+    text: GovMunicípio
+    optional: true

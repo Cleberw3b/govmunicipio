@@ -10,6 +10,7 @@ import {
   MunicipalityEntity,
   PersonEntity,
   PersonIdentificationEntity,
+  DoctorSpecialtyLinkEntity,
 } from '../entities';
 import { CreateDoctorDto } from './dto/create-doctor.dto';
 
@@ -35,10 +36,10 @@ export class OrganizationService {
     return this.hospitalRepository.find({
       relations: {
         organization: {
-          address: true,
-          contacts: true,
+          addressLinks: { address: true },
+          contactLinks: { contact: true },
         },
-        specialties: true,
+        specialtyLinks: { specialty: true },
       },
     });
   }
@@ -49,14 +50,14 @@ export class OrganizationService {
         person: {
           identification: true,
         },
-        specialties: true,
+        specialtyLinks: { specialty: true },
       },
     });
   }
 
   async searchDoctors(q: string): Promise<DoctorEntity[]> {
     const term = q.trim();
-    const relations = { person: { identification: true }, specialties: true };
+    const relations = { person: { identification: true }, specialtyLinks: { specialty: true } };
     const [byCrm, byFirstName, byLastName] = await Promise.all([
       this.doctorRepository.find({ where: { crm: ILike(`%${term}%`) }, relations }),
       this.doctorRepository.find({ where: { person: { firstName: ILike(`%${term}%`) } }, relations }),
@@ -88,13 +89,25 @@ export class OrganizationService {
         ? await this.specialtyRepository.findByIds(dto.specialtyIds)
         : [];
 
-      const doctor = manager.create(DoctorEntity, { crm: dto.crm, isActive: true, person });
-      doctor.specialties = specialties;
-      const saved = await manager.save(DoctorEntity, doctor);
+      const doctor = await manager.save(DoctorEntity,
+        manager.create(DoctorEntity, { crm: dto.crm, isActive: true, person })
+      );
+
+      // Create DoctorSpecialtyLinkEntity records for each specialty
+      if (specialties.length > 0) {
+        for (const specialty of specialties) {
+          await manager.save(
+            manager.create(DoctorSpecialtyLinkEntity, {
+              doctor,
+              specialty,
+            }),
+          );
+        }
+      }
 
       return manager.findOneOrFail(DoctorEntity, {
-        where: { id: saved.id },
-        relations: { person: { identification: true }, specialties: true },
+        where: { id: doctor.id },
+        relations: { person: { identification: true }, specialtyLinks: { specialty: true } },
       });
     });
   }

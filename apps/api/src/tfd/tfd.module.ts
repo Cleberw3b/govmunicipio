@@ -4,6 +4,7 @@ import { TfdRequestEntity, StatusEntity, MunicipalityEntity } from '../entities'
 import { OrganizationModule } from '../organization/organization.module';
 import { TfdService } from './tfd.service';
 import { TfdController } from './tfd.controller';
+import { TfdPdfService } from './tfd-pdf.service';
 import { WhatsAppService } from './whatsapp.service';
 
 @Module({
@@ -12,7 +13,7 @@ import { WhatsAppService } from './whatsapp.service';
     OrganizationModule,
   ],
   controllers: [TfdController],
-  providers: [TfdService, WhatsAppService],
+  providers: [TfdService, TfdPdfService, WhatsAppService],
   exports: [TfdService],
 })
 export class TfdModule {}

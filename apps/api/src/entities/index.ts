@@ -16,7 +16,19 @@ export { StatusEntity } from './status.entity';
 export { ModuleEntity } from './module.entity';
 export { ModuleStatusEntity } from './module-status.entity';
 export { TfdRequestEntity } from './tfd-request.entity';
-export { OtpTokenEntity } from './otp-token.entity';
 export { MunicipalityHospitalLinkEntity } from './municipality-hospital-link.entity';
 export { MunicipalityHotelLinkEntity } from './municipality-hotel-link.entity';
 export { PickupAddressEntity } from './pickup-address.entity';
+export { NotificationEntity } from './notification.entity';
+export { AuditLogEntity } from './audit-log.entity';
+
+// Link entities (explicit junction tables with timestamps and soft delete)
+export { PersonAddressLinkEntity } from './person-address-link.entity';
+export { OrganizationAddressLinkEntity } from './organization-address-link.entity';
+export { PersonContactLinkEntity } from './person-contact-link.entity';
+export { OrganizationContactLinkEntity } from './organization-contact-link.entity';
+export { PrincipalRoleLinkEntity } from './principal-role-link.entity';
+export { PrincipalOrganizationLinkEntity } from './principal-organization-link.entity';
+export { RolePermissionLinkEntity } from './role-permission-link.entity';
+export { HospitalSpecialtyLinkEntity } from './hospital-specialty-link.entity';
+export { DoctorSpecialtyLinkEntity } from './doctor-specialty-link.entity';

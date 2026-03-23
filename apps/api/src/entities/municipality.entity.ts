@@ -10,7 +10,7 @@ export class MunicipalityEntity extends BaseEntity {
   @Column({ type: 'varchar', length: 2 })
   state!: string;
 
-  @OneToOne(() => OrganizationEntity)
-  @JoinColumn({ name: 'organization_id' })
+  @OneToOne(() => OrganizationEntity, (org) => org.municipality, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'organization_id', foreignKeyConstraintName: 'FK_municipality_organization' })
   organization!: OrganizationEntity;
 }

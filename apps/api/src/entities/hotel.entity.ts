@@ -4,7 +4,7 @@ import { OrganizationEntity } from './organization.entity';
 
 @Entity('hotel')
 export class HotelEntity extends BaseEntity {
-  @OneToOne(() => OrganizationEntity)
-  @JoinColumn({ name: 'organization_id' })
+  @OneToOne(() => OrganizationEntity, (org) => org.hotel, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'organization_id', foreignKeyConstraintName: 'FK_hotel_organization' })
   organization!: OrganizationEntity;
 }

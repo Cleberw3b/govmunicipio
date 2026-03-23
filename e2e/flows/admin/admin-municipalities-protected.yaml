@@ -1,0 +1,9 @@
+appId: com.govmunicipio.web
+---
+# Test that /admin/municipalities requires authentication
+- openLink: http://localhost:3000/admin/municipalities
+- wait:
+    duration: 2
+# Should be redirected to login page
+- assertVisible: GovMunicípio
+- assertVisible: Entre com suas credenciais para acessar o sistema

@@ -2,13 +2,12 @@ import {
   Entity,
   Column,
   OneToOne,
-  ManyToMany,
+  OneToMany,
   JoinColumn,
-  JoinTable,
 } from 'typeorm';
 import { BaseEntity } from './base.entity';
 import { PersonEntity } from './person.entity';
-import { SpecialtyEntity } from './specialty.entity';
+import { DoctorSpecialtyLinkEntity } from './doctor-specialty-link.entity';
 
 @Entity('doctor')
 export class DoctorEntity extends BaseEntity {
@@ -18,15 +17,11 @@ export class DoctorEntity extends BaseEntity {
   @Column({ type: 'boolean', default: true, name: 'is_active' })
   isActive!: boolean;
 
-  @OneToOne(() => PersonEntity)
-  @JoinColumn({ name: 'person_id' })
+  @OneToOne(() => PersonEntity, (person) => person.doctor, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'person_id', foreignKeyConstraintName: 'FK_doctor_person' })
   person!: PersonEntity;
 
-  @ManyToMany(() => SpecialtyEntity)
-  @JoinTable({
-    name: 'doctor_specialty',
-    joinColumn: { name: 'doctor_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'specialty_id', referencedColumnName: 'id' },
-  })
-  specialties!: SpecialtyEntity[];
+  // Specialty links (replace ManyToMany)
+  @OneToMany(() => DoctorSpecialtyLinkEntity, (link) => link.doctor)
+  specialtyLinks!: DoctorSpecialtyLinkEntity[];
 }

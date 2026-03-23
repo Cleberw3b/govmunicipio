@@ -7,7 +7,6 @@ import {
   PrincipalEntity,
   RoleEntity,
   PermissionEntity,
-  OtpTokenEntity,
 } from '../entities';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
@@ -16,7 +15,7 @@ import { OtpService } from './otp.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PrincipalEntity, RoleEntity, PermissionEntity, OtpTokenEntity]),
+    TypeOrmModule.forFeature([PrincipalEntity, RoleEntity, PermissionEntity]),
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],

@@ -51,7 +51,7 @@ export class MunicipalityController {
   @Patch('users/:id')
   @HttpCode(HttpStatus.OK)
   updateUser(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateMunicipalityUserDto,
     @CurrentPrincipal() p: CurrentPrincipalData,
   ): Promise<PrincipalEntity> {
@@ -95,7 +95,7 @@ export class MunicipalityController {
   @Post('hospitals/:hospitalId/link')
   @HttpCode(HttpStatus.NO_CONTENT)
   linkHospital(
-    @Param('hospitalId') hospitalId: string,
+    @Param('hospitalId', ParseUUIDPipe) hospitalId: string,
     @CurrentPrincipal() p: CurrentPrincipalData,
   ): Promise<void> {
     return this.municipalityService.linkHospital(hospitalId, p.organizationId);
@@ -104,7 +104,7 @@ export class MunicipalityController {
   @Delete('hospitals/:hospitalId/link')
   @HttpCode(HttpStatus.NO_CONTENT)
   unlinkHospital(
-    @Param('hospitalId') hospitalId: string,
+    @Param('hospitalId', ParseUUIDPipe) hospitalId: string,
     @CurrentPrincipal() p: CurrentPrincipalData,
   ): Promise<void> {
     return this.municipalityService.unlinkHospital(hospitalId, p.organizationId);
@@ -134,7 +134,7 @@ export class MunicipalityController {
   @Post('hotels/:hotelId/link')
   @HttpCode(HttpStatus.NO_CONTENT)
   linkHotel(
-    @Param('hotelId') hotelId: string,
+    @Param('hotelId', ParseUUIDPipe) hotelId: string,
     @CurrentPrincipal() p: CurrentPrincipalData,
   ): Promise<void> {
     return this.municipalityService.linkHotel(hotelId, p.organizationId);
@@ -143,7 +143,7 @@ export class MunicipalityController {
   @Delete('hotels/:hotelId/link')
   @HttpCode(HttpStatus.NO_CONTENT)
   unlinkHotel(
-    @Param('hotelId') hotelId: string,
+    @Param('hotelId', ParseUUIDPipe) hotelId: string,
     @CurrentPrincipal() p: CurrentPrincipalData,
   ): Promise<void> {
     return this.municipalityService.unlinkHotel(hotelId, p.organizationId);

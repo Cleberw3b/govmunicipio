@@ -191,6 +191,106 @@ else
   ((FAIL++)) || true
 fi
 
+# ── 7. TFD — Lifecycle Status Transitions (requires ADMIN_USERNAME/PASSWORD) ──
+
+echo ""
+echo "── TFD / Lifecycle ────────────────────────────────────────────────────"
+
+if [[ -n "${ADMIN_USERNAME:-}" && -n "${ADMIN_PASSWORD:-}" ]]; then
+  # Login as municipality admin
+  STATUS=$(do_curl -X POST "$BASE/auth/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"username\":\"$ADMIN_USERNAME\",\"password\":\"$ADMIN_PASSWORD\"}")
+  BODY=$(cat "$TMPFILE")
+  ADMIN_TOKEN=$(echo "$BODY" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+
+  if [[ -n "$ADMIN_TOKEN" ]]; then
+    green "Logged in as $ADMIN_USERNAME"
+    ((PASS++)) || true
+
+    # Find a patient person ID
+    STATUS=$(do_curl "$BASE/persons/search?cpf=222.222.222-22" \
+      -H "Authorization: Bearer $ADMIN_TOKEN")
+    PERSON_BODY=$(cat "$TMPFILE")
+    PATIENT_ID=$(echo "$PERSON_BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+    if [[ -n "$PATIENT_ID" ]]; then
+      # Create TFD → expect draft
+      STATUS=$(do_curl -X POST "$BASE/tfd/requests" \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "{\"patientPersonId\":\"$PATIENT_ID\"}")
+      TFD_BODY=$(cat "$TMPFILE")
+      assert_status "POST /tfd/requests (create draft)" 201 "$STATUS"
+      TFD_ID=$(echo "$TFD_BODY" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+      # Try invalid transition: draft → in_transit (expect 400)
+      STATUS=$(do_curl -X PATCH "$BASE/tfd/requests/$TFD_ID/status" \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"statusCode":"in_transit"}')
+      assert_status "PATCH status draft→in_transit (invalid → 400)" 400 "$STATUS"
+
+      # Cancel draft → cancelled
+      STATUS=$(do_curl -X PATCH "$BASE/tfd/requests/$TFD_ID/status" \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"statusCode":"cancelled"}')
+      assert_status "PATCH status draft→cancelled (valid)" 200 "$STATUS"
+
+      # Try to change cancelled → pending (terminal, expect 400)
+      STATUS=$(do_curl -X PATCH "$BASE/tfd/requests/$TFD_ID/status" \
+        -H "Authorization: Bearer $ADMIN_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"statusCode":"pending"}')
+      assert_status "PATCH status cancelled→pending (invalid → 400)" 400 "$STATUS"
+
+      # Get statuses endpoint
+      STATUS=$(do_curl "$BASE/tfd/requests/statuses" \
+        -H "Authorization: Bearer $ADMIN_TOKEN")
+      assert_status "GET /tfd/requests/statuses" 200 "$STATUS"
+    else
+      red "Could not find patient for lifecycle test — skipping"
+      ((FAIL++)) || true
+    fi
+  else
+    red "Login as municipality admin failed — skipping lifecycle tests"
+    ((FAIL++)) || true
+  fi
+else
+  echo "  (skipped — ADMIN_USERNAME / ADMIN_PASSWORD not set in .env)"
+fi
+
+# ── 8. Permission tests (viewer cannot update status) ────────────────────────
+
+echo ""
+echo "── TFD / Permissions ──────────────────────────────────────────────────"
+
+if [[ -n "${VIEWER_USERNAME:-}" && -n "${VIEWER_PASSWORD:-}" ]]; then
+  STATUS=$(do_curl -X POST "$BASE/auth/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"username\":\"$VIEWER_USERNAME\",\"password\":\"$VIEWER_PASSWORD\"}")
+  BODY=$(cat "$TMPFILE")
+  VIEWER_TOKEN=$(echo "$BODY" | grep -o '"accessToken":"[^"]*"' | cut -d'"' -f4)
+
+  if [[ -n "$VIEWER_TOKEN" ]]; then
+    # Viewer → cannot update status (expect 403)
+    STATUS=$(do_curl -X PATCH "$BASE/tfd/requests/00000000-0000-0000-0000-000000000001/status" \
+      -H "Authorization: Bearer $VIEWER_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"statusCode":"cancelled"}')
+    assert_status "PATCH status as viewer (→ 403)" 403 "$STATUS"
+  fi
+else
+  echo "  (skipped — VIEWER_USERNAME / VIEWER_PASSWORD not set in .env)"
+fi
+
+# Unauthenticated → cannot update status (expect 401)
+STATUS=$(do_curl -X PATCH "$BASE/tfd/requests/00000000-0000-0000-0000-000000000001/status" \
+  -H "Content-Type: application/json" \
+  -d '{"statusCode":"cancelled"}')
+assert_status "PATCH status unauthenticated (→ 401)" 401 "$STATUS"
+
 # ── Cleanup ───────────────────────────────────────────────────────────────────
 
 rm -f "$TMPFILE"

@@ -1,17 +1,11 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
+/**
+ * @deprecated Superseded by InitialSchema1742900000000.
+ * Kept as empty stub for migration history compatibility.
+ */
 export class RemoveTfdContactPhone1771679344883 implements MigrationInterface {
-  public async up(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      ALTER TABLE "tfd_request"
-        DROP COLUMN IF EXISTS "contact_phone"
-    `);
-  }
-
-  public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      ALTER TABLE "tfd_request"
-        ADD COLUMN IF NOT EXISTS "contact_phone" varchar
-    `);
-  }
+  name = 'RemoveTfdContactPhone1771679344883';
+  public async up(_queryRunner: QueryRunner): Promise<void> { /* no-op */ }
+  public async down(_queryRunner: QueryRunner): Promise<void> { /* no-op */ }
 }

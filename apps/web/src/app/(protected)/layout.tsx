@@ -25,6 +25,8 @@ import {
 } from '@/components/ui/sheet';
 import { isAuthenticated, getCurrentPrincipal, logout } from '@/lib/auth';
 import { isAdminMunicipality, isSuperAdmin } from '@/lib/admin-auth';
+import { ErrorBoundary } from '@/components/error-boundary';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 function SidebarContent({ pathname }: { pathname: string }) {
   const principal = getCurrentPrincipal();
@@ -76,21 +78,24 @@ function SidebarContent({ pathname }: { pathname: string }) {
 
       <Separator />
 
-      <div className="px-4 py-4">
+      <div className="px-4 py-4 space-y-3">
         {principal && (
-          <p className="mb-3 truncate text-sm text-muted-foreground">
+          <p className="truncate text-sm text-muted-foreground">
             {principal.username}
           </p>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start"
-          onClick={() => logout()}
-        >
-          <LogOut className="h-4 w-4" />
-          Sair
-        </Button>
+        <div className="flex gap-2">
+          <ThemeToggle />
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 justify-start"
+            onClick={() => logout()}
+          >
+            <LogOut className="h-4 w-4" />
+            Sair
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -133,21 +138,26 @@ export default function ProtectedLayout({
       <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Mobile header */}
-          <header className="flex h-14 items-center gap-2 border-b px-4 md:hidden">
-            <SheetTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Abrir menu</span>
-              </Button>
-            </SheetTrigger>
-            <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              <span className="font-semibold">GovMunicípio</span>
+          <header className="flex h-14 items-center justify-between gap-2 border-b px-4 md:hidden">
+            <div className="flex items-center gap-2 flex-1">
+              <SheetTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Menu className="h-5 w-5" />
+                  <span className="sr-only">Abrir menu</span>
+                </Button>
+              </SheetTrigger>
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                <span className="font-semibold">GovMunicípio</span>
+              </div>
             </div>
+            <ThemeToggle />
           </header>
 
           {/* Main content */}
-          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+          <main id="main-content" className="flex-1 overflow-y-auto p-6">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </main>
         </div>
 
         <SheetContent side="left" className="w-64 p-0">

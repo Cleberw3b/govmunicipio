@@ -23,8 +23,8 @@ export class AuthService {
     const principal = await this.principalRepository.findOne({
       where: { username },
       relations: {
-        roles: { permissions: true },
-        organizations: true,
+        roleLinks: { role: { permissionLinks: { permission: true } } },
+        organizationLinks: { organization: true },
       },
     });
 
@@ -48,7 +48,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    this.logger.log(`Login OK: "${username}" roles=[${principal.roles.map((r) => r.name).join(', ')}]`);
+    this.logger.log(`Login OK: "${username}" roles=[${principal.roleLinks.map((rl) => rl.role.name).join(', ')}]`);
     return principal;
   }
 
@@ -59,8 +59,8 @@ export class AuthService {
     const principal = await this.principalRepository.findOne({
       where: { id: principalId },
       relations: {
-        roles: { permissions: true },
-        organizations: true,
+        roleLinks: { role: { permissionLinks: { permission: true } } },
+        organizationLinks: { organization: true },
       },
     });
 
@@ -70,16 +70,16 @@ export class AuthService {
 
     const resolvedOrganizationId =
       organizationId ??
-      (principal.organizations.length > 0
-        ? principal.organizations[0].id
+      (principal.organizationLinks.length > 0
+        ? principal.organizationLinks[0].organization.id
         : '');
 
-    const roles = principal.roles.map((role) => role.name);
+    const roles = principal.roleLinks.map((rl) => rl.role.name);
 
     const permissions = [
       ...new Set(
-        principal.roles.flatMap((role) =>
-          role.permissions.map((perm) => `${perm.resource}:${perm.action}`),
+        principal.roleLinks.flatMap((rl) =>
+          rl.role.permissionLinks.map((pl) => `${pl.permission.resource}:${pl.permission.action}`),
         ),
       ),
     ];

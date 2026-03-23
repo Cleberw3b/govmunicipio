@@ -2,17 +2,28 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TfdRequestEntity } from '../entities';
 
+const RETRY_DELAY_MS = 2000;
+const MAX_RETRIES = 1;
+
 @Injectable()
 export class WhatsAppService {
   private readonly logger = new Logger(WhatsAppService.name);
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private readonly instance: string;
+  private readonly isConfigured: boolean;
 
   constructor(private readonly config: ConfigService) {
     this.apiUrl = config.get('WHATSAPP_API_URL', '');
     this.apiKey = config.get('WHATSAPP_API_KEY', '');
     this.instance = config.get('WHATSAPP_INSTANCE', 'default');
+
+    this.isConfigured = !!(this.apiUrl && this.apiKey);
+    if (!this.isConfigured) {
+      this.logger.warn(
+        'WhatsApp service not fully configured. Set WHATSAPP_API_URL and WHATSAPP_API_KEY to enable notifications.',
+      );
+    }
   }
 
   private normalizePhone(phone: string): string {
@@ -38,7 +49,7 @@ export class WhatsAppService {
       '-';
 
     const hospitalCity =
-      tfd.destinationHospital?.organization?.address?.city ?? null;
+      tfd.destinationHospital?.organization?.addressLinks?.[0]?.address?.city ?? null;
 
     const hospitalFull = hospitalCity ? `${hospital} — ${hospitalCity}` : hospital;
 
@@ -83,13 +94,37 @@ export class WhatsAppService {
   }
 
   async sendTfdNotification(tfd: TfdRequestEntity): Promise<void> {
-    const patientPhone = tfd.patientPerson?.contacts?.find(
-      (c) => c.type === 'phone',
-    )?.value;
-    if (!this.apiUrl || !this.apiKey || !patientPhone) return;
+    const patientPhone = tfd.patientPerson?.contactLinks?.find(
+      (cl) => cl.contact?.type === 'phone',
+    )?.contact?.value;
+
+    if (!patientPhone) {
+      this.logger.debug(
+        `No phone contact found for TFD ${tfd.protocolNumber}. Skipping notification.`,
+      );
+      return;
+    }
+
+    if (!this.isConfigured) {
+      this.logger.debug(
+        `WhatsApp not configured. Skipping notification for TFD ${tfd.protocolNumber}.`,
+      );
+      return;
+    }
 
     const phone = this.normalizePhone(patientPhone);
     const text = this.buildMessage(tfd);
+
+    await this.sendWithRetry(tfd.protocolNumber, phone, text);
+  }
+
+  private async sendWithRetry(
+    protocolNumber: string,
+    phone: string,
+    text: string,
+    attempt: number = 1,
+  ): Promise<void> {
+    const timestamp = new Date().toISOString();
 
     try {
       const response = await fetch(
@@ -105,14 +140,69 @@ export class WhatsAppService {
       );
 
       if (!response.ok) {
-        this.logger.warn(
-          `WhatsApp notification failed for ${phone}: ${response.status}`,
-        );
+        const responseBody = await response.text();
+        const logContext = {
+          protocol: protocolNumber,
+          phone,
+          statusCode: response.status,
+          attempt,
+          timestamp,
+        };
+
+        if (attempt < MAX_RETRIES + 1) {
+          this.logger.warn(
+            `WhatsApp notification failed (attempt ${attempt}/${MAX_RETRIES + 1}): ` +
+              `protocol=${protocolNumber}, phone=${phone}, status=${response.status}. ` +
+              `Response: ${responseBody.substring(0, 200)}`,
+            logContext,
+          );
+
+          await this.delay(RETRY_DELAY_MS);
+          await this.sendWithRetry(protocolNumber, phone, text, attempt + 1);
+        } else {
+          this.logger.error(
+            `WhatsApp notification failed after ${MAX_RETRIES + 1} attempts: ` +
+              `protocol=${protocolNumber}, phone=${phone}, status=${response.status}. ` +
+              `Response: ${responseBody.substring(0, 200)}`,
+            logContext,
+          );
+        }
       } else {
-        this.logger.log(`WhatsApp sent to ${phone} for TFD ${tfd.protocolNumber}`);
+        this.logger.log(
+          `WhatsApp notification sent: protocol=${protocolNumber}, phone=${phone}, timestamp=${timestamp}`,
+          { protocol: protocolNumber, phone, timestamp },
+        );
       }
     } catch (err) {
-      this.logger.error(`WhatsApp send error: ${err}`);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      const logContext = {
+        protocol: protocolNumber,
+        phone,
+        error: errorMessage,
+        attempt,
+        timestamp,
+      };
+
+      if (attempt < MAX_RETRIES + 1) {
+        this.logger.warn(
+          `WhatsApp send error (attempt ${attempt}/${MAX_RETRIES + 1}): ` +
+            `protocol=${protocolNumber}, phone=${phone}, error=${errorMessage}`,
+          logContext,
+        );
+
+        await this.delay(RETRY_DELAY_MS);
+        await this.sendWithRetry(protocolNumber, phone, text, attempt + 1);
+      } else {
+        this.logger.error(
+          `WhatsApp send error after ${MAX_RETRIES + 1} attempts: ` +
+            `protocol=${protocolNumber}, phone=${phone}, error=${errorMessage}`,
+          logContext,
+        );
+      }
     }
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

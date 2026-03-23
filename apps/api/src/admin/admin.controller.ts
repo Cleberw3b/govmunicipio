@@ -6,9 +6,11 @@ import {
   Delete,
   Param,
   Body,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { CreateMunicipalityDto } from './dto/create-municipality.dto';
@@ -26,6 +28,8 @@ import { UpdateSpecialtyDto } from './dto/update-specialty.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { PaginationQueryDto } from '../common';
+import { IPaginatedResponse } from '@govmunicipio/shared';
 import {
   DoctorEntity,
   HospitalEntity,
@@ -43,12 +47,17 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('municipalities')
-  findAllMunicipalities(): Promise<MunicipalityEntity[]> {
-    return this.adminService.findAllMunicipalities();
+  findAllMunicipalities(
+    @Query() paginationDto: PaginationQueryDto,
+  ): Promise<IPaginatedResponse<MunicipalityEntity>> {
+    return this.adminService.findAllMunicipalities(
+      paginationDto.page || 1,
+      paginationDto.limit || 20,
+    );
   }
 
   @Get('municipalities/:id')
-  findMunicipality(@Param('id') id: string): Promise<MunicipalityEntity> {
+  findMunicipality(@Param('id', ParseUUIDPipe) id: string): Promise<MunicipalityEntity> {
     return this.adminService.findMunicipalityById(id);
   }
 
@@ -63,15 +72,20 @@ export class AdminController {
   @Patch('municipalities/:id')
   @HttpCode(HttpStatus.OK)
   updateMunicipality(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateMunicipalityDto,
   ): Promise<MunicipalityEntity> {
     return this.adminService.updateMunicipality(id, dto);
   }
 
   @Get('hospitals')
-  findAllHospitals(): Promise<HospitalEntity[]> {
-    return this.adminService.findAllHospitals();
+  findAllHospitals(
+    @Query() paginationDto: PaginationQueryDto,
+  ): Promise<IPaginatedResponse<HospitalEntity>> {
+    return this.adminService.findAllHospitals(
+      paginationDto.page || 1,
+      paginationDto.limit || 20,
+    );
   }
 
   @Post('hospitals')
@@ -83,15 +97,20 @@ export class AdminController {
   @Patch('hospitals/:id')
   @HttpCode(HttpStatus.OK)
   updateHospital(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateHospitalDto,
   ): Promise<HospitalEntity> {
     return this.adminService.updateHospital(id, dto);
   }
 
   @Get('hotels')
-  findAllHotels(): Promise<HotelEntity[]> {
-    return this.adminService.findAllHotels();
+  findAllHotels(
+    @Query() paginationDto: PaginationQueryDto,
+  ): Promise<IPaginatedResponse<HotelEntity>> {
+    return this.adminService.findAllHotels(
+      paginationDto.page || 1,
+      paginationDto.limit || 20,
+    );
   }
 
   @Post('hotels')
@@ -103,7 +122,7 @@ export class AdminController {
   @Patch('hotels/:id')
   @HttpCode(HttpStatus.OK)
   updateHotel(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateHotelDto,
   ): Promise<HotelEntity> {
     return this.adminService.updateHotel(id, dto);
@@ -125,7 +144,7 @@ export class AdminController {
   @Patch('organizations/:id')
   @HttpCode(HttpStatus.OK)
   updateOrganization(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateOrganizationDto,
   ): Promise<OrganizationEntity> {
     return this.adminService.updateOrganization(id, dto);
@@ -147,7 +166,7 @@ export class AdminController {
   @Patch('users/:id')
   @HttpCode(HttpStatus.OK)
   updateUser(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
   ): Promise<PrincipalEntity> {
     return this.adminService.updateUser(id, dto);
@@ -170,7 +189,7 @@ export class AdminController {
   @Patch('specialties/:id')
   @HttpCode(HttpStatus.OK)
   updateSpecialty(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateSpecialtyDto,
   ): Promise<SpecialtyEntity> {
     return this.adminService.updateSpecialty(id, dto);
@@ -180,7 +199,7 @@ export class AdminController {
 
   @Get('hospitals/:id/specialties')
   @Roles('super_admin', 'admin_municipality')
-  getHospitalSpecialties(@Param('id') id: string): Promise<HospitalEntity> {
+  getHospitalSpecialties(@Param('id', ParseUUIDPipe) id: string): Promise<HospitalEntity> {
     return this.adminService.findHospitalWithSpecialties(id);
   }
 
@@ -188,8 +207,8 @@ export class AdminController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles('super_admin', 'admin_municipality')
   addSpecialtyToHospital(
-    @Param('id') id: string,
-    @Param('specialtyId') specialtyId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('specialtyId', ParseUUIDPipe) specialtyId: string,
   ): Promise<void> {
     return this.adminService.addSpecialtyToHospital(id, specialtyId);
   }
@@ -198,8 +217,8 @@ export class AdminController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles('super_admin', 'admin_municipality')
   removeSpecialtyFromHospital(
-    @Param('id') id: string,
-    @Param('specialtyId') specialtyId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('specialtyId', ParseUUIDPipe) specialtyId: string,
   ): Promise<void> {
     return this.adminService.removeSpecialtyFromHospital(id, specialtyId);
   }
@@ -216,8 +235,8 @@ export class AdminController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles('super_admin', 'admin_municipality')
   addSpecialtyToDoctor(
-    @Param('id') id: string,
-    @Param('specialtyId') specialtyId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('specialtyId', ParseUUIDPipe) specialtyId: string,
   ): Promise<void> {
     return this.adminService.addSpecialtyToDoctor(id, specialtyId);
   }
@@ -226,8 +245,8 @@ export class AdminController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @Roles('super_admin', 'admin_municipality')
   removeSpecialtyFromDoctor(
-    @Param('id') id: string,
-    @Param('specialtyId') specialtyId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('specialtyId', ParseUUIDPipe) specialtyId: string,
   ): Promise<void> {
     return this.adminService.removeSpecialtyFromDoctor(id, specialtyId);
   }

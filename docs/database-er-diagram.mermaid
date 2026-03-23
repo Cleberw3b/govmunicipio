@@ -1,0 +1,398 @@
+erDiagram
+    %% ============================================================
+    %% GovMunicipio - Entity-Relationship Diagram
+    %% Generated from TypeORM entities on 2026-03-23
+    %% All tables inherit id (UUID PK), created_at, updated_at, deleted_at
+    %% ============================================================
+
+    %% --- CORE IDENTITY ---
+
+    address {
+        uuid id PK
+        varchar street
+        varchar number
+        varchar complement "nullable"
+        varchar neighborhood
+        varchar city
+        varchar state "length 2"
+        varchar zip_code
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    contact {
+        uuid id PK
+        varchar type "ContactType enum"
+        varchar value
+        varchar label "nullable"
+        boolean is_primary "default false"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    person {
+        uuid id PK
+        varchar first_name
+        varchar last_name
+        varchar gender "Gender enum"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    person_identification {
+        uuid id PK
+        varchar cpf UK "unique"
+        varchar rg "nullable"
+        varchar sus_card_number "unique, nullable"
+        date date_of_birth
+        varchar issuing_authority "nullable"
+        uuid person_id FK "unique"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    person_address {
+        uuid person_id PK "FK to person"
+        uuid address_id PK "FK to address"
+        varchar label "nullable"
+        boolean is_primary "default false"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    person_contact {
+        uuid person_id PK "FK to person"
+        uuid contact_id PK "FK to contact"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    %% --- AUTH and RBAC ---
+
+    principal {
+        uuid id PK
+        varchar username UK
+        varchar password_hash
+        boolean is_active "default true"
+        varchar email "nullable"
+        varchar phone "nullable"
+        timestamp last_login "nullable"
+        uuid person_id FK "nullable, unique"
+        uuid organization_id FK "nullable, unique"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    role {
+        uuid id PK
+        varchar name UK
+        varchar description "nullable"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    permission {
+        uuid id PK
+        varchar resource
+        varchar action
+        varchar description "nullable"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    principal_role {
+        uuid principal_id PK "FK to principal"
+        uuid role_id PK "FK to role"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    principal_organization {
+        uuid principal_id PK "FK to principal"
+        uuid organization_id PK "FK to organization"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    role_permission {
+        uuid role_id PK "FK to role"
+        uuid permission_id PK "FK to permission"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    %% --- ORGANIZATIONS ---
+
+    organization {
+        uuid id PK
+        varchar name
+        varchar cnpj UK
+        boolean is_active "default true"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    organization_address {
+        uuid organization_id PK "FK to organization"
+        uuid address_id PK "FK to address"
+        varchar label "nullable"
+        boolean is_primary "default false"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    organization_contact {
+        uuid organization_id PK "FK to organization"
+        uuid contact_id PK "FK to contact"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    municipality {
+        uuid id PK
+        varchar ibge_code UK
+        varchar state "length 2"
+        uuid organization_id FK "unique"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    hospital {
+        uuid id PK
+        varchar cnes_code UK
+        uuid organization_id FK "unique"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    hotel {
+        uuid id PK
+        uuid organization_id FK "unique"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    %% --- MEDICAL ---
+
+    specialty {
+        uuid id PK
+        varchar code UK
+        varchar name
+        varchar group_code "nullable"
+        varchar group_name "nullable"
+        decimal price "precision 10 scale 2, default 0"
+        boolean is_active "default true"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    doctor {
+        uuid id PK
+        varchar crm UK
+        boolean is_active "default true"
+        uuid person_id FK "unique"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    hospital_specialty {
+        uuid hospital_id PK "FK to hospital"
+        uuid specialty_id PK "FK to specialty"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    doctor_specialty {
+        uuid doctor_id PK "FK to doctor"
+        uuid specialty_id PK "FK to specialty"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    %% --- MUNICIPALITY LINKS ---
+
+    municipality_hospital {
+        uuid municipality_id PK "FK to municipality"
+        uuid hospital_id PK "FK to hospital"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    municipality_hotel {
+        uuid municipality_id PK "FK to municipality"
+        uuid hotel_id PK "FK to hotel"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    %% --- TFD ---
+
+    pickup_address {
+        uuid id PK
+        varchar name
+        varchar street
+        varchar number
+        varchar complement "nullable"
+        varchar neighborhood
+        varchar city
+        varchar state "length 2"
+        uuid municipality_id FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    status {
+        uuid id PK
+        varchar code UK
+        varchar label
+        int sort_order
+        boolean is_active "default true"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    module {
+        uuid id PK
+        varchar code UK
+        varchar name
+        varchar description "nullable"
+        boolean is_active "default true"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    module_status {
+        uuid id PK
+        int sort_order
+        uuid module_id FK
+        uuid status_id FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    tfd_request {
+        uuid id PK
+        varchar protocol_number UK
+        varchar diagnosis_cid "nullable"
+        text procedure_description "nullable"
+        text justification "nullable"
+        date request_date "nullable"
+        date travel_date "nullable"
+        date return_date "nullable"
+        varchar transport_type "nullable"
+        decimal estimated_cost "10-2, nullable"
+        decimal transportation_cost "10-2, nullable"
+        decimal food_cost "10-2, nullable"
+        decimal hotel_cost "10-2, nullable"
+        text notes "nullable"
+        text departure_custom_address "nullable"
+        uuid patient_person_id FK
+        uuid companion_person_id FK "nullable"
+        uuid requesting_doctor_id FK "nullable"
+        uuid destination_hospital_id FK "nullable"
+        uuid specialty_id FK "nullable"
+        uuid hotel_id FK "nullable"
+        uuid pickup_address_id FK "nullable"
+        uuid return_pickup_address_id FK "nullable"
+        uuid municipality_id FK
+        uuid created_by_principal_id FK
+        uuid status_id FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    %% ============================================================
+    %% RELATIONSHIPS
+    %% ============================================================
+
+    %% Person relationships
+    person ||--o{ person_address : "has"
+    person_address }o--|| address : "references"
+    person ||--|| person_identification : "identified by"
+    person ||--o{ person_contact : "has"
+    person_contact }o--|| contact : "references"
+
+    %% Principal (user account) relationships
+    principal |o--o| person : "linked to"
+    principal |o--o| organization : "belongs to"
+    principal ||--o{ principal_role : "has"
+    principal_role }o--|| role : "references"
+    principal ||--o{ principal_organization : "member of"
+    principal_organization }o--|| organization : "references"
+
+    %% Role-Permission
+    role ||--o{ role_permission : "grants"
+    role_permission }o--|| permission : "references"
+
+    %% Organization subtypes
+    organization ||--o{ organization_address : "has"
+    organization_address }o--|| address : "references"
+    organization ||--o{ organization_contact : "has"
+    organization_contact }o--|| contact : "references"
+    municipality ||--|| organization : "is a"
+    hospital ||--|| organization : "is a"
+    hotel ||--|| organization : "is a"
+
+    %% Municipality links
+    municipality ||--o{ municipality_hospital : "links to"
+    municipality_hospital }o--|| hospital : "references"
+    municipality ||--o{ municipality_hotel : "links to"
+    municipality_hotel }o--|| hotel : "references"
+
+    %% Hospital-Specialty
+    hospital ||--o{ hospital_specialty : "offers"
+    hospital_specialty }o--|| specialty : "references"
+
+    %% Doctor
+    doctor ||--|| person : "is a"
+    doctor ||--o{ doctor_specialty : "practices"
+    doctor_specialty }o--|| specialty : "references"
+
+    %% Pickup address
+    pickup_address }o--|| municipality : "belongs to"
+
+    %% Module-Status
+    module ||--o{ module_status : "has"
+    module_status }o--|| status : "references"
+
+    %% TFD Request - the central business entity
+    tfd_request }o--|| person : "patient"
+    tfd_request }o--o| person : "companion"
+    tfd_request }o--o| doctor : "requested by"
+    tfd_request }o--o| hospital : "destination"
+    tfd_request }o--o| specialty : "for procedure"
+    tfd_request }o--o| hotel : "stays at"
+    tfd_request }o--o| pickup_address : "departs from"
+    tfd_request }o--o| pickup_address : "returns from"
+    tfd_request }o--|| municipality : "belongs to"
+    tfd_request }o--|| principal : "created by"
+    tfd_request }o--|| status : "current status"

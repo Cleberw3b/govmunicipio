@@ -6,6 +6,8 @@ import {
   PersonIdentificationEntity,
   ContactEntity,
   AddressEntity,
+  PersonAddressLinkEntity,
+  PersonContactLinkEntity,
 } from '../entities';
 import { CreatePersonDto } from './dto/create-person.dto';
 
@@ -28,8 +30,8 @@ export class PersonService {
       where: { identification: { cpf } },
       relations: {
         identification: true,
-        address: true,
-        contacts: true,
+        addressLinks: { address: true },
+        contactLinks: { contact: true },
       },
     });
   }
@@ -39,8 +41,8 @@ export class PersonService {
       where: { identification: { susCardNumber } },
       relations: {
         identification: true,
-        address: true,
-        contacts: true,
+        addressLinks: { address: true },
+        contactLinks: { contact: true },
       },
     });
   }
@@ -50,8 +52,8 @@ export class PersonService {
       where: { id },
       relations: {
         identification: true,
-        address: true,
-        contacts: true,
+        addressLinks: { address: true },
+        contactLinks: { contact: true },
       },
     });
 
@@ -64,8 +66,14 @@ export class PersonService {
 
   async create(dto: CreatePersonDto): Promise<PersonEntity> {
     return this.dataSource.transaction(async (manager) => {
-      let address: AddressEntity | null = null;
+      const personEntity = manager.create(PersonEntity, {
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        gender: dto.gender,
+      });
+      const person = await manager.save(PersonEntity, personEntity);
 
+      // Create address and link if provided
       if (dto.address) {
         const addressEntity = manager.create(AddressEntity, {
           street: dto.address.street,
@@ -76,11 +84,17 @@ export class PersonService {
           state: dto.address.state,
           zipCode: dto.address.zipCode,
         });
-        address = await manager.save(AddressEntity, addressEntity);
+        const savedAddress = await manager.save(AddressEntity, addressEntity);
+
+        await manager.save(
+          manager.create(PersonAddressLinkEntity, {
+            person,
+            address: savedAddress,
+          }),
+        );
       }
 
-      const contacts: ContactEntity[] = [];
-
+      // Create contacts and links if provided
       if (dto.contacts && dto.contacts.length > 0) {
         for (const contactDto of dto.contacts) {
           const contactEntity = manager.create(ContactEntity, {
@@ -90,18 +104,15 @@ export class PersonService {
             isPrimary: contactDto.isPrimary ?? false,
           });
           const savedContact = await manager.save(ContactEntity, contactEntity);
-          contacts.push(savedContact);
+
+          await manager.save(
+            manager.create(PersonContactLinkEntity, {
+              person,
+              contact: savedContact,
+            }),
+          );
         }
       }
-
-      const personEntity = manager.create(PersonEntity, {
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        gender: dto.gender,
-        address,
-        contacts,
-      });
-      const person = await manager.save(PersonEntity, personEntity);
 
       const identificationEntity = manager.create(PersonIdentificationEntity, {
         cpf: dto.cpf,
@@ -117,8 +128,8 @@ export class PersonService {
         where: { id: person.id },
         relations: {
           identification: true,
-          address: true,
-          contacts: true,
+          addressLinks: { address: true },
+          contactLinks: { contact: true },
         },
       });
     });
