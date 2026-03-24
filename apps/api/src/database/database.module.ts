@@ -17,8 +17,8 @@ import { ConfigService } from '@nestjs/config';
             ssl: isProduction ? { rejectUnauthorized: false } : false,
             entities: [__dirname + '/../entities/*.entity{.ts,.js}'],
             migrations: [__dirname + '/migrations/*{.ts,.js}'],
-            migrationsRun: isProduction,
-            synchronize: !isProduction,
+            migrationsRun: false,
+            synchronize: false,
             logging: !isProduction,
           };
         }
