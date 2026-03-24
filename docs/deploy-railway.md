@@ -1,6 +1,42 @@
 # Backend Deployment on Railway
 
-This guide describes how to deploy the API (`apps/api`) on Railway with managed PostgreSQL.
+This guide describes how to deploy the API (`apps/api`) on Railway with managed PostgreSQL and Redis.
+
+---
+
+## Project Reference
+
+| Resource | ID / URL |
+|----------|----------|
+| **Railway Project** | `3462a872-ff29-4501-915f-be99281dea97` |
+| **Environment** | `production` (`7239deb6-bd6e-4213-aedc-d9e54decd658`) |
+| **API Service** | `8c1f278d-0054-44f4-a33b-3866c41c36fe` |
+| **API URL** | `https://api-production-eb2b7.up.railway.app` |
+| **Dashboard** | [railway.com/project/3462a872-ff29-4501-915f-be99281dea97](https://railway.com/project/3462a872-ff29-4501-915f-be99281dea97) |
+
+### Service Connection URLs
+
+**PostgreSQL** (internal — used by API service):
+```
+postgresql://postgres:<password>@postgres.railway.internal:5432/railway
+```
+
+**PostgreSQL** (public — for local migrations/seeds):
+```
+postgresql://postgres:<password>@maglev.proxy.rlwy.net:<port>/railway
+```
+
+**Redis** (internal — used by API service):
+```
+redis://default:<password>@redis.railway.internal:6379
+```
+
+**Redis** (public — for local debugging):
+```
+redis://default:<password>@<host>.proxy.rlwy.net:<port>
+```
+
+> Get the actual URLs with: `railway link --service Postgres && railway variables`
 
 ---
 
@@ -12,184 +48,202 @@ This guide describes how to deploy the API (`apps/api`) on Railway with managed 
 
 ---
 
-## 1. Create the Project on Railway
+## 1. Project Structure on Railway
 
-### Via Dashboard
+The Railway project has 3 services:
 
-1. Go to [railway.app](https://railway.app) and click **New Project**
-2. Select **Deploy from GitHub repo**
-3. Authorize Railway to access your GitHub account
-4. Select the repository `Cleberw3b/govmunicipio`
+```
+govmunicipio (Railway Project)
+├── api        → NestJS API (from GitHub, Nixpacks build)
+├── Postgres   → PostgreSQL 16 (managed database)
+└── Redis      → Redis 7 (managed, for OTP tokens)
+```
 
-### Via CLI
+### Adding Services via CLI
 
 ```bash
 railway login
-railway init
-# Select "Empty Project" and name it "govmunicipio"
+railway link  # Select the govmunicipio project
+
+# Add databases
+railway add -d postgres
+railway add -d redis
 ```
 
 ---
 
-## 2. Add PostgreSQL
+## 2. Build Configuration
 
-In the Railway dashboard, inside the project:
+The API builds using **Nixpacks** with configuration in `nixpacks.toml`:
 
-1. Click **+ New** → **Database** → **Add PostgreSQL**
-2. Railway will automatically create a database and inject the `DATABASE_URL` variable
+```toml
+[phases.setup]
+nixPkgs = ["nodejs_22", "nodePackages.pnpm"]
+
+[phases.install]
+cmds = ["pnpm install --frozen-lockfile"]
+```
+
+And `railway.toml`:
+
+```toml
+[build]
+builder = "NIXPACKS"
+buildCommand = "pnpm install && pnpm turbo build --filter=@govmunicipio/api"
+
+[deploy]
+startCommand = "node apps/api/dist/main.js"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+```
+
+> **Note**: Node version is controlled by the `NIXPACKS_NODE_VERSION=24` env var on Railway, not the nixPkgs entry.
 
 ---
 
-## 3. Configure the API Service
+## 3. Environment Variables
 
-### Root Directory
-
-In the API service settings, set the **Root Directory** to `apps/api`.
-
-### Build Command
-
-```
-pnpm install && pnpm build
-```
-
-### Start Command
-
-```
-node dist/main.js
-```
-
-### Watch Paths
-
-Configure to redeploy only when relevant files change:
-
-```
-apps/api/**
-packages/shared/**
-package.json
-pnpm-lock.yaml
-```
-
----
-
-## 4. Environment Variables
-
-Set the following environment variables in Railway (Settings → Variables):
+Set on the **api** service (Settings → Variables):
 
 ```env
-# Database (automatically provided by Railway PostgreSQL)
+# Database — Railway reference variable (resolves to internal URL automatically)
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 
+# Redis — Railway reference variable
+REDIS_URL=${{Redis.REDIS_URL}}
+
 # JWT
-JWT_SECRET=your_strong_secret_key_here
+JWT_SECRET=<generate with: openssl rand -base64 64>
 JWT_EXPIRATION=7d
 
 # Application
 NODE_ENV=production
-PORT=3001
+NIXPACKS_NODE_VERSION=24
 
-# CORS - Frontend URL on Vercel
+# CORS — Frontend URL on Vercel
 CORS_ORIGIN=https://govmunicipio.vercel.app
 ```
 
-> **Important**: For `JWT_SECRET`, use a random string of at least 64 characters.
-> Generate with: `openssl rand -base64 64`
+> **Important**: Use `${{Postgres.DATABASE_URL}}` and `${{Redis.REDIS_URL}}` reference syntax — Railway resolves these to the internal service URLs automatically.
 
 ---
 
-## 5. Configure CORS in the API
+## 4. Database Setup
 
-Edit `apps/api/src/main.ts` to read CORS_ORIGIN from the environment variable:
-
-```typescript
-app.enableCors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true,
-});
-```
-
----
-
-## 6. Configure TypeORM for Production
-
-`apps/api/src/database/database.module.ts` already uses `synchronize: false` in production.
-To apply the initial schema, run the migrations:
+### Run Migrations (from local)
 
 ```bash
-# Generate migration from entities
-railway run pnpm typeorm migration:generate -- -d src/database/data-source.ts src/database/migrations/InitialSchema
+# Link to Postgres service to get the public URL
+railway link --service Postgres
+DB_PUBLIC_URL=$(railway variables --json | python3 -c "import sys,json; print(json.load(sys.stdin)['DATABASE_PUBLIC_URL'])")
 
-# Run migrations
-railway run pnpm typeorm migration:run -- -d src/database/data-source.ts
+# Switch to API directory and run migrations
+cd apps/api
+DATABASE_URL="$DB_PUBLIC_URL" npx dotenv-cli -e /dev/null -- \
+  ts-node --project tsconfig.json node_modules/typeorm/cli.js \
+  migration:run -d src/database/data-source.ts
 ```
 
-Or, for initial development, set `DB_SYNCHRONIZE=true` temporarily in the environment variables (remove after the first deploy).
-
----
-
-## 7. Run the Initial Seed
-
-After the first deploy with `DB_SYNCHRONIZE=true`:
+### Run Seed (from local)
 
 ```bash
-railway run pnpm seed
+DATABASE_URL="$DB_PUBLIC_URL" npx ts-node --project tsconfig.json \
+  src/database/seeds/seed.ts
 ```
 
-This will create:
-- TFD module with statuses (Draft, Pending, Approved, Rejected, Scheduled, Completed, Cancelled)
-- Roles and permissions (super_admin, admin_municipality, operator_tfd, viewer) with resource:action format
-- SIGTAP medical specialties (run `pnpm seed:specialties` separately for the full SIGTAP list)
-- Default superadmin user (credentials from env)
+This creates:
+- 5 TFD statuses (draft, pending, in_transit, finalized, cancelled)
+- TFD module with module-status links
+- 11 permissions + 4 roles (super_admin, admin_municipality, operator_tfd, viewer)
+- 4,829 SIGTAP medical specialties
+- Sample municipality, hospital, persons
+- Default principals: `admin` / `admin123`, `superadmin` / `super123`
 
-> **Security**: Change all default passwords immediately after the first login. Use the OTP flow to set strong passwords.
-
----
-
-## 8. Verify the Deployment
-
-After deployment, the API will be available at the URL provided by Railway (e.g. `https://govmunicipio-api.up.railway.app`).
-
-Check the health endpoint:
+### Full Reset (drop + recreate)
 
 ```bash
-curl https://govmunicipio-api.up.railway.app/health
-# Expected: {"status":"ok"}
+# Get public URL
+railway link --service Postgres
+DB_PUBLIC_URL=$(railway variables --json | python3 -c "import sys,json; print(json.load(sys.stdin)['DATABASE_PUBLIC_URL'])")
+
+# Drop and recreate schema
+cd apps/api
+node -e "
+const { Client } = require('pg');
+const c = new Client({ connectionString: '$DB_PUBLIC_URL' });
+c.connect()
+  .then(() => c.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO public;'))
+  .then(() => { console.log('Schema reset'); c.end(); })
+  .catch(e => { console.error(e.message); c.end(); process.exit(1); });
+"
+
+# Run migrations + seed
+DATABASE_URL="$DB_PUBLIC_URL" npx dotenv-cli -e /dev/null -- \
+  ts-node --project tsconfig.json node_modules/typeorm/cli.js \
+  migration:run -d src/database/data-source.ts
+
+DATABASE_URL="$DB_PUBLIC_URL" npx ts-node --project tsconfig.json \
+  src/database/seeds/seed.ts
+```
+
+> **Security**: Change all default passwords immediately after the first login.
+
+---
+
+## 5. Deploy
+
+### Manual Deploy (from local)
+
+```bash
+railway link --service api
+railway up --detach
+```
+
+### CI/CD Deploy (GitHub Actions)
+
+The CI pipeline (`.github/workflows/ci.yml`) includes a `deploy-railway` job that runs automatically on push to `main` when `apps/api/` or `packages/shared/` change.
+
+Requires the `RAILWAY_TOKEN` GitHub secret — create a project-scoped token at [railway.com/account/tokens](https://railway.com/account/tokens).
+
+---
+
+## 6. Verify the Deployment
+
+```bash
+# Test login endpoint
+curl -s https://api-production-eb2b7.up.railway.app/api/v1/auth/login \
+  -X POST -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"admin123"}'
+
+# Check logs
+railway link --service api
+railway logs -n 30
 ```
 
 ---
 
-## 9. Connect the Frontend to the API
+## 7. Frontend Connection
 
-In Vercel, add the environment variable to the `govmunicipio` project:
+The frontend on Vercel connects to the API via:
 
 ```env
-NEXT_PUBLIC_API_URL=https://govmunicipio-api.up.railway.app
-```
-
-And update `apps/web/src/lib/api.ts` to use this variable:
-
-```typescript
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-```
-
-After the change, redeploy the frontend with:
-
-```bash
-vercel deploy --prod
+NEXT_PUBLIC_API_URL=https://api-production-eb2b7.up.railway.app/api/v1
 ```
 
 ---
 
-## 10. Final Deployment Structure
+## 8. Final Architecture
 
 ```
 GitHub (Cleberw3b/govmunicipio)
 │
-├── apps/web  ──────────────────►  Vercel
-│                                  URL: https://govmunicipio.vercel.app
+├── apps/web  ───── CI ────►  Vercel
+│                              URL: https://govmunicipio.vercel.app
 │
-└── apps/api  ──────────────────►  Railway
-                                   URL: https://govmunicipio-api.up.railway.app
-                                   DB: Railway PostgreSQL (managed)
+└── apps/api  ───── CI ────►  Railway
+                               URL: https://api-production-eb2b7.up.railway.app
+                               ├── PostgreSQL (managed, internal networking)
+                               └── Redis 7 (managed, for OTP tokens)
 ```
 
 ---
@@ -197,36 +251,57 @@ GitHub (Cleberw3b/govmunicipio)
 ## Useful Commands
 
 ```bash
-# View API logs on Railway
-railway logs
+# Link to project
+railway link --project 3462a872-ff29-4501-915f-be99281dea97 --service api --environment production
 
-# Open project dashboard
+# View logs
+railway logs -n 50
+
+# View environment variables
+railway variables
+
+# List deployments
+railway deployment list
+
+# Open dashboard
 railway open
 
-# Run a command in the Railway environment
-railway run <command>
-
-# View configured environment variables
-railway variables
+# Redeploy
+railway up --detach
 ```
 
 ---
 
 ## Troubleshooting
 
-### Error: "Cannot find module '@govmunicipio/shared'"
+### Error: "Configuration key JWT_SECRET does not exist"
 
-Make sure the monorepo build is compiling the shared package before the API.
-Check that `turbo.json` has `^build` as a dependency in the build pipeline.
-
-### Error: "SSL required" on PostgreSQL
-
-Railway requires SSL. Add to `database.module.ts`:
-
-```typescript
-ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+The deployment went to a service without env vars. Ensure you're linked to the correct API service:
+```bash
+railway link --service api --environment production
+railway variables  # Verify JWT_SECRET is listed
+railway up --detach
 ```
 
-### Deploy not updating after push
+### Error: "Unable to connect to the database"
 
-Check that Watch Paths is configured correctly, or force a manual redeploy from the dashboard.
+Check that `DATABASE_URL` uses the Railway reference variable `${{Postgres.DATABASE_URL}}` and that the Postgres service is running:
+```bash
+railway link --service Postgres
+railway deployment list  # Should show SUCCESS
+```
+
+### Error: "Cannot find module '@govmunicipio/shared'"
+
+The monorepo build needs the shared package. The `buildCommand` in `railway.toml` handles this:
+```
+pnpm install && pnpm turbo build --filter=@govmunicipio/api
+```
+
+### Redis warnings in logs
+
+If `REDIS_URL` is not set, the API runs without Redis (OTP features disabled). Set it with:
+```bash
+railway link --service api
+railway variables set REDIS_URL='${{Redis.REDIS_URL}}'
+```
