@@ -65,7 +65,7 @@ export default function HospitalsPage() {
   const load = useCallback(() => {
     setLoading(true);
     return apiClient<Hospital[]>('/admin/hospitals')
-      .then(setHospitals)
+      .then((d) => setHospitals(Array.isArray(d) ? d : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

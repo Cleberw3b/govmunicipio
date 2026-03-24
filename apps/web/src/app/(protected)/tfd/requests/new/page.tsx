@@ -830,7 +830,7 @@ function DoctorStep({
 
   useEffect(() => {
     apiClient<DoctorResult[]>('/doctors')
-      .then(setDoctors)
+      .then((d) => setDoctors(Array.isArray(d) ? d : []))
       .catch(() => setDoctors([]))
       .finally(() => setLoading(false));
   }, []);
@@ -1130,7 +1130,7 @@ function HospitalStep({
 
   useEffect(() => {
     apiClient<HospitalResult[]>('/hospitals')
-      .then(setHospitals)
+      .then((d) => setHospitals(Array.isArray(d) ? d : []))
       .catch(() => setHospitals([]))
       .finally(() => setLoading(false));
   }, []);
@@ -1483,7 +1483,7 @@ function TravelCostsStep({
 
   useEffect(() => {
     apiClient<PickupAddress[]>('/municipality/pickup-addresses')
-      .then(setAddresses)
+      .then((d) => setAddresses(Array.isArray(d) ? d : []))
       .catch(() => {});
   }, []);
 

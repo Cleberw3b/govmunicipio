@@ -55,7 +55,7 @@ export default function OrganizationsPage() {
   const load = useCallback(() => {
     setLoading(true);
     return apiClient<Organization[]>('/municipality/organizations')
-      .then(setOrgs)
+      .then((d) => setOrgs(Array.isArray(d) ? d : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

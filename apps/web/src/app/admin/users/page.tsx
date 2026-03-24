@@ -99,7 +99,7 @@ export default function UsersPage() {
   const load = useCallback(() => {
     setLoading(true);
     return apiClient<Principal[]>('/admin/users')
-      .then(setUsers)
+      .then((d) => setUsers(Array.isArray(d) ? d : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -111,7 +111,7 @@ export default function UsersPage() {
       apiClient<MunicipalityResponse[]>('/admin/municipalities')
         .then((data) =>
           setMunicipalities(
-            data.map((m) => ({
+            (Array.isArray(data) ? data : []).map((m) => ({
               orgId: m.organization.id,
               label: `${m.organization.name} — ${m.organization.address?.city ?? ''}/${m.state}`,
             })),
@@ -135,8 +135,8 @@ export default function UsersPage() {
       lastName: u.person?.lastName ?? '',
       cpf: u.person?.identification?.cpf ?? '',
       isActive: u.isActive,
-      roles: u.roles.map((r) => r.name),
-      organizationId: u.organizations[0]?.id ?? null,
+      roles: (u.roles ?? []).map((r) => r.name),
+      organizationId: (u.organizations ?? [])[0]?.id ?? null,
     });
     loadMunicipalities();
   }
@@ -288,7 +288,7 @@ export default function UsersPage() {
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
-                      {u.roles.map((r) => (
+                      {(u.roles ?? []).map((r) => (
                         <Badge key={r.name} variant="outline">
                           {ROLE_LABELS[r.name] ?? r.name}
                         </Badge>

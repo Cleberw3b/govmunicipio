@@ -101,7 +101,7 @@ export default function TfdRequestListPage() {
       const response = await apiClient<{ data: TfdRequestListItem[]; meta: { page: number; limit: number; total: number; totalPages: number; hasMore: boolean } }>(
         `/tfd/requests${query}`,
       );
-      setRequests(response.data);
+      setRequests(Array.isArray(response?.data) ? response.data : []);
     } catch {
       setRequests([]);
     } finally {

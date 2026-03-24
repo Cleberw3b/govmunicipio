@@ -67,8 +67,20 @@ export default function DashboardUsersPage() {
 
   const load = useCallback(() => {
     setLoading(true);
-    return apiClient<MunicipalityUser[]>('/municipality/users')
-      .then(setUsers)
+    return apiClient<Record<string, unknown>[]>('/municipality/users')
+      .then((data) => {
+        const mapped = (data ?? []).map((u) => ({
+          id: u.id as string,
+          username: u.username as string,
+          isActive: u.isActive as boolean,
+          person: u.person as MunicipalityUser['person'],
+          roles: (
+            (u.roles as { name: string }[]) ??
+            ((u.roleLinks as { role: { name: string } }[]) ?? []).map((rl) => rl.role)
+          ),
+        }));
+        setUsers(mapped);
+      })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
@@ -204,7 +216,7 @@ export default function DashboardUsersPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
-                        {u.roles.map((r) => (
+                        {(u.roles ?? []).map((r) => (
                           <Badge key={r.name} variant="outline">
                             {ROLE_LABELS[r.name] ?? r.name}
                           </Badge>

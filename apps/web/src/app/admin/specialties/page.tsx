@@ -65,7 +65,7 @@ export default function SpecialtiesPage() {
   const load = useCallback(() => {
     setLoading(true);
     return apiClient<Specialty[]>('/admin/specialties')
-      .then(setSpecialties)
+      .then((d) => setSpecialties(Array.isArray(d) ? d : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

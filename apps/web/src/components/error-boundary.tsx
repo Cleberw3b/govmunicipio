@@ -48,11 +48,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
               <p className="text-sm text-muted-foreground">
                 Desculpe-nos pelo inconveniente. Ocorreu um erro inesperado.
               </p>
-              {this.state.error && (
-                <p className="text-xs text-muted-foreground/70 font-mono">
-                  {this.state.error.message}
-                </p>
-              )}
+              {/* Never expose error messages/stack traces to users */}
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">

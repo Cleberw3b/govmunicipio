@@ -29,11 +29,7 @@ export default function Error({
           <p className="text-sm text-muted-foreground">
             Desculpe-nos. Algo deu errado ao carregar a página.
           </p>
-          {error.message && (
-            <p className="text-xs text-muted-foreground/70 font-mono">
-              {error.message}
-            </p>
-          )}
+          {/* Never expose error messages/stack traces to users */}
         </div>
 
         <Button onClick={reset} className="w-full">

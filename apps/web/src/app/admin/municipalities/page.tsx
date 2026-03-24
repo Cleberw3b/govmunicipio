@@ -60,7 +60,7 @@ export default function MunicipalitiesPage() {
   const load = useCallback(() => {
     setLoading(true);
     return apiClient<Municipality[]>('/admin/municipalities')
-      .then(setMunicipalities)
+      .then((d) => setMunicipalities(Array.isArray(d) ? d : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

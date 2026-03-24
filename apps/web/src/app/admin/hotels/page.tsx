@@ -60,7 +60,7 @@ export default function AdminHotelsPage() {
   const load = useCallback(() => {
     setLoading(true);
     return apiClient<Hotel[]>('/admin/hotels')
-      .then(setHotels)
+      .then((d) => setHotels(Array.isArray(d) ? d : []))
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);

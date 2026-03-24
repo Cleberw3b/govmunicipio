@@ -43,8 +43,9 @@ export async function apiClient<T>(
   }
 
   if (response.status === 204 || response.headers.get('content-length') === '0') {
-    return undefined as T;
+    return [] as unknown as T;
   }
 
-  return response.json();
+  const data = await response.json();
+  return data ?? ([] as unknown as T);
 }

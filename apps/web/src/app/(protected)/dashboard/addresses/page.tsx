@@ -56,7 +56,7 @@ export default function AddressesPage() {
   const load = useCallback(() => {
     setLoading(true);
     apiClient<PickupAddress[]>('/municipality/pickup-addresses')
-      .then(setAddresses)
+      .then((d) => setAddresses(Array.isArray(d) ? d : []))
       .catch(() => toast.error('Erro ao carregar endereços.'))
       .finally(() => setLoading(false));
   }, []);

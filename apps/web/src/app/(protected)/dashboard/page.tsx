@@ -159,7 +159,7 @@ export default function DashboardPage() {
       .finally(() => setLoadingStats(false));
 
     apiClient<{ data: TfdRequestListItem[]; meta: unknown }>('/tfd/requests?limit=10')
-      .then((res) => setRequests(res.data))
+      .then((res) => setRequests(Array.isArray(res?.data) ? res.data : []))
       .catch(() => {
         // Error already handled by stats — we just show empty table
       })
