@@ -159,7 +159,7 @@ describe('OtpService', () => {
         execute: jest.fn().mockResolvedValue({ affected: 0 }),
       };
       (otpRepository.createQueryBuilder as jest.Mock).mockReturnValue(queryBuilder);
-      (otpRepository.create as jest.Mock).mockImplementation((entity, data) => data);
+      (otpRepository.create as jest.Mock).mockImplementation((data) => data);
       (otpRepository.save as jest.Mock).mockImplementation((token) => Promise.resolve(token));
 
       await service.requestOtp('testuser');

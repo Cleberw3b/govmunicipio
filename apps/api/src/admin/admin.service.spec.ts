@@ -53,6 +53,7 @@ describe('AdminService', () => {
     cnpj: '12.345.678/0001-90',
     isActive: true,
     address: { id: 'addr-1' },
+    addressLinks: [{ address: { id: 'addr-1' } }],
   };
 
   const mockMunicipality = {
@@ -577,6 +578,7 @@ describe('AdminService', () => {
         organization: {
           ...mockMunicipality.organization,
           address: null,
+          addressLinks: [],
         },
       };
 
