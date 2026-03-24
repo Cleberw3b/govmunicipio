@@ -203,7 +203,31 @@ railway up --detach
 
 The CI pipeline (`.github/workflows/ci.yml`) includes a `deploy-railway` job that runs automatically on push to `main` when `apps/api/` or `packages/shared/` change.
 
-Requires the `RAILWAY_TOKEN` GitHub secret — create a project-scoped token at [railway.com/account/tokens](https://railway.com/account/tokens).
+**Required GitHub secret:** `RAILWAY_TOKEN`
+
+> ⚠️ **This must be a Project Token, NOT an Account Token.**
+>
+> - **Project Tokens** are created at: **Project Settings → Tokens**
+>   → [railway.com/project/3462a872-ff29-4501-915f-be99281dea97/settings/tokens](https://railway.com/project/3462a872-ff29-4501-915f-be99281dea97/settings/tokens)
+>   → Select the **production** environment when creating the token.
+>   → These work with the `RAILWAY_TOKEN` env var.
+>
+> - **Account Tokens** (created at `railway.com/account/tokens`) do **NOT** work with `RAILWAY_TOKEN`.
+>   Account tokens use the `RAILWAY_API_TOKEN` env var instead and require a different auth flow.
+>
+> After creating the project token, set it as a GitHub secret:
+> ```bash
+> gh secret set RAILWAY_TOKEN -R Cleberw3b/govmunicipio
+> ```
+
+The CI deploy command uses explicit project/service/environment flags (no `railway link` needed in CI):
+```bash
+railway up \
+  --project 3462a872-ff29-4501-915f-be99281dea97 \
+  --service api \
+  --environment production \
+  --detach
+```
 
 ---
 
@@ -297,6 +321,19 @@ The monorepo build needs the shared package. The `buildCommand` in `railway.toml
 ```
 pnpm install && pnpm turbo build --filter=@govmunicipio/api
 ```
+
+### Error: "Unauthorized" or "Invalid RAILWAY_TOKEN" in CI deploy
+
+The `RAILWAY_TOKEN` GitHub secret is using an **Account Token** instead of a **Project Token**.
+
+- Account tokens (`railway.com/account/tokens`) → use `RAILWAY_API_TOKEN`, not `RAILWAY_TOKEN`
+- Project tokens (`Project Settings → Tokens`) → use `RAILWAY_TOKEN` ✅
+
+Fix:
+1. Go to [Project Settings → Tokens](https://railway.com/project/3462a872-ff29-4501-915f-be99281dea97/settings/tokens)
+2. Create a new token scoped to the **production** environment
+3. Update the GitHub secret: `gh secret set RAILWAY_TOKEN -R Cleberw3b/govmunicipio`
+4. Re-run the failed CI job: `gh run rerun <run_id> --failed -R Cleberw3b/govmunicipio`
 
 ### Redis warnings in logs
 
