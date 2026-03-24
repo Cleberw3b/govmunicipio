@@ -330,6 +330,44 @@ erDiagram
         timestamp deleted_at "nullable"
     }
 
+    notification {
+        uuid id PK
+        varchar type
+        varchar title
+        text message
+        boolean is_read "default false"
+        varchar link_url "nullable"
+        uuid recipient_id FK
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    audit_log {
+        uuid id PK
+        uuid actor_id FK
+        varchar action
+        varchar entity_type
+        uuid entity_id
+        jsonb old_values "nullable"
+        jsonb new_values "nullable"
+        varchar ip_address "nullable"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
+    otp_token {
+        uuid id PK
+        uuid principal_id FK
+        varchar code
+        timestamp expires_at
+        timestamp used_at "nullable"
+        timestamp created_at
+        timestamp updated_at
+        timestamp deleted_at "nullable"
+    }
+
     %% ============================================================
     %% RELATIONSHIPS
     %% ============================================================
@@ -396,3 +434,12 @@ erDiagram
     tfd_request }o--|| municipality : "belongs to"
     tfd_request }o--|| principal : "created by"
     tfd_request }o--|| status : "current status"
+
+    %% Notification
+    notification }o--|| principal : "recipient"
+
+    %% Audit Log
+    audit_log }o--|| principal : "actor"
+
+    %% OTP Token
+    otp_token }o--|| principal : "belongs to"

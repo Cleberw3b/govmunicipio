@@ -20,18 +20,19 @@ govmunicipio/
 ├── packages/
 │   └── shared/       Shared interfaces, enums, and DTOs
 ├── docs/             Documentation, plans, and test files
-├── e2e/              Maestro E2E test flows and scripts
-│   ├── flows/        YAML test flows by feature area
-│   └── scripts/      Test runner scripts
+├── e2e/              Docker-based E2E test orchestration
+│   ├── Dockerfile.web         Next.js standalone build for E2E
+│   ├── Dockerfile.playwright  Playwright test runner image
+│   └── docker-compose.e2e.yml Service orchestration (web + playwright)
 ├── .github/workflows/ CI/CD pipeline (GitHub Actions)
 ├── turbo.json        Turborepo pipeline config
 ├── pnpm-workspace.yaml
 ├── docker-compose.yml   Local dev services (PostgreSQL 16, Redis 7)
 ├── railway.toml         Railway production config
-└── nixpacks.toml        Build environment (Node.js 22)
+└── nixpacks.toml        Build environment (Node.js 22 + pnpm)
 ```
 
-**Tooling:** Turborepo + pnpm workspaces, TypeScript 5, Node.js 22.
+**Tooling:** Turborepo + pnpm 10.32.1 workspaces, TypeScript 5, Node.js 24 (dev/CI), Node.js 22 (Railway production).
 
 ---
 
@@ -187,7 +188,19 @@ Prerequisites: Java 17+, Maestro CLI. Install with `curl -fsSL "https://get.maes
 
 Run locally: `./e2e/scripts/run-e2e.sh`
 
-See `e2e/README.md` for the full testing guide.
+### E2E Tests (Playwright)
+
+18 Playwright tests in `apps/web/e2e/` across 5 spec files:
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `auth.spec.ts` | 5 | Login (success, invalid, empty), set-password nav, page elements |
+| `dashboard.spec.ts` | 3 | Protected route redirects (/dashboard, /tfd, /admin) |
+| `tfd.spec.ts` | 4 | Protected routes + authenticated navigation |
+| `admin.spec.ts` | 3 | Protected routes (/admin, /municipalities, /hospitals) |
+| `accessibility.spec.ts` | 3 | Skip-to-content link, keyboard nav, Portuguese text |
+
+Run in Docker: `docker compose -f e2e/docker-compose.e2e.yml up --build --exit-code-from playwright`
 
 ### Smoke Tests
 
@@ -195,17 +208,35 @@ Bash-based HTTP endpoint tests at `docs/tests/smoke-test.sh`. Cover all API endp
 
 ### CI/CD
 
-GitHub Actions pipeline at `.github/workflows/ci.yml` runs three jobs on every PR: lint + build → unit tests → Maestro E2E tests. All three must pass before merge.
+GitHub Actions pipeline at `.github/workflows/ci.yml`:
+
+```
+changes (detect web/api path changes)
+│
+lint-and-build
+├── unit-tests ──────────┐
+└── e2e-playwright ──────┤
+                         ├── deploy-vercel  (if web/ changed, main push only)
+                         └── deploy-railway (if api/ changed, main push only)
+```
+
+All test gates must pass before deploy. Deploys are conditional on which folders changed.
 
 ---
 
 ## Deployment
 
-| Component | Platform | URL Pattern |
-|-----------|----------|-------------|
+| Component | Platform | URL |
+|-----------|----------|-----|
 | Frontend | Vercel | `https://govmunicipio.vercel.app` |
-| API | Railway | `https://govmunicipio-api.up.railway.app` |
-| Database | Railway PostgreSQL | Managed, injected via `DATABASE_URL` |
+| API | Railway | `https://api-production-eb2b7.up.railway.app` |
+| PostgreSQL | Railway (managed) | Internal: `postgres.railway.internal:5432` |
+| Redis | Railway (managed) | Internal: `redis.railway.internal:6379` |
+
+Railway Project ID: `3462a872-ff29-4501-915f-be99281dea97`
+API Service ID: `8c1f278d-0054-44f4-a33b-3866c41c36fe`
+
+See [deploy-railway.md](deploy-railway.md) for full deployment guide.
 
 ---
 

@@ -21,8 +21,11 @@ Key rules:
 - **API**: NestJS 11 + TypeORM 0.3 + PostgreSQL 16 (Railway) + Redis 7 (ioredis)
 - **Frontend**: Next.js 16 App Router + React 19 + Tailwind CSS 4 + shadcn/ui (Vercel)
 - **Shared**: TypeScript interfaces, enums, DTOs (`@govmunicipio/shared`)
-- **Monorepo**: Turborepo + pnpm workspaces
-- **Runtime**: Node.js 22
+- **Monorepo**: Turborepo + pnpm 10.32.1 workspaces
+- **Runtime**: Node.js 24 (dev/CI), Node.js 22 (Railway via Nixpacks)
+- **E2E Testing**: Playwright (Docker-based, 18 tests across 5 spec files)
+- **Unit Testing**: Jest + @nestjs/testing (73 tests)
+- **CI/CD**: GitHub Actions → conditional deploy to Vercel (web) + Railway (api)
 - **Local dev**: Docker Compose (PostgreSQL 16 + Redis 7)
 
 ## Key paths
@@ -30,7 +33,7 @@ Key rules:
 | Path | Description |
 |------|-------------|
 | `apps/api/src/` | NestJS API source |
-| `apps/api/src/entities/` | TypeORM entities (30 entities + abstract base) |
+| `apps/api/src/entities/` | TypeORM entities (32 concrete + 1 abstract base) |
 | `apps/api/src/auth/` | Auth module (JWT, guards, Redis OTP, decorators) |
 | `apps/api/src/admin/` | Super admin module (municipalities, hospitals, hotels, orgs, users, specialties, doctors) |
 | `apps/api/src/municipality/` | Municipality-scoped module (users, hospitals, hotels, pickup addresses) |
@@ -55,9 +58,12 @@ Key rules:
 | `docs/` | Security, deployment, architecture docs |
 | `docs/plans/` | Design and implementation plan documents |
 | `docs/tests/` | Smoke tests, API test collections |
-| `e2e/` | Maestro E2E test flows and runner scripts |
-| `e2e/flows/` | YAML test flows organized by feature (auth, dashboard, tfd, admin, accessibility) |
-| `.github/workflows/` | CI/CD pipeline (lint, build, unit tests, E2E) |
+| `docs/deploy-railway.md` | Railway deployment guide (project IDs, URLs, setup) |
+| `docs/database-er-diagram.mermaid` | ER diagram (all 32 entities + relationships) |
+| `apps/web/e2e/` | Playwright E2E test specs (auth, dashboard, tfd, admin, accessibility) |
+| `apps/web/playwright.config.ts` | Playwright configuration |
+| `e2e/` | Docker E2E orchestration (Dockerfile.web, Dockerfile.playwright, docker-compose) |
+| `.github/workflows/ci.yml` | CI/CD pipeline (lint, build, unit tests, E2E, conditional deploys) |
 
 ## API Modules & Routes
 
@@ -79,7 +85,7 @@ Key rules:
 | `operator_tfd` | `/tfd/*` | TFD request operations |
 | `viewer` | `/tfd/*` (read) | View-only access |
 
-## Entities (30 concrete + 1 abstract base)
+## Entities (32 concrete + 1 abstract base)
 
 **Core:** PrincipalEntity, PersonEntity, PersonIdentificationEntity, AddressEntity, ContactEntity
 **Organization:** OrganizationEntity, MunicipalityEntity, HospitalEntity, HotelEntity
@@ -231,7 +237,7 @@ docs/plans/**
 - Test environment configuration (`docs/tests/.env.example`)
 - Unit test design and implementation for API services and controllers
 - Integration test design for API endpoints (end-to-end with database)
-- Maestro E2E test flows (`e2e/flows/`) — write, maintain, and expand browser-based test flows
+- Playwright E2E tests (`apps/web/e2e/`) — write, maintain, and expand browser-based test specs
 - Frontend component testing strategy
 - CI/CD pipeline maintenance (`.github/workflows/ci.yml`) — ensure all test gates pass before merge
 - Test coverage analysis and gap identification
@@ -402,3 +408,75 @@ packages/shared/src/interfaces/**
 | Design system update | Designer | Frontend (implement), Project Manager (document) |
 | Performance optimization | Backend or Frontend (depends) | Database (query tuning), QA (benchmark) |
 | Documentation update | Project Manager | All agents (review accuracy) |
+
+---
+
+## Pre-Commit Verification (MANDATORY)
+
+**Before EVERY commit to GitHub, you MUST run these checks locally and ensure they all pass:**
+
+```bash
+# 1. Lint all workspaces (TypeScript type checking)
+pnpm lint
+
+# 2. Build all workspaces
+pnpm build
+
+# 3. Run API unit tests (73 tests)
+pnpm --filter api test
+
+# 4. Run Playwright E2E tests in Docker (18 tests)
+docker compose -f e2e/docker-compose.e2e.yml up --build --exit-code-from playwright --abort-on-container-exit
+docker compose -f e2e/docker-compose.e2e.yml down --volumes --remove-orphans
+```
+
+**Do NOT commit if any step fails.** Fix the issue first, then re-run all checks.
+
+If the E2E Docker tests cannot run (e.g. Docker not available), at minimum run steps 1-3.
+
+---
+
+## CI/CD Pipeline
+
+The pipeline (`.github/workflows/ci.yml`) runs on every push to `main` and on PRs:
+
+```
+changes (detect web/api file changes)
+│
+lint-and-build (pnpm lint + pnpm build)
+├── unit-tests (pnpm --filter api test) ───────────┐
+└── e2e-playwright (Docker Compose, 18 tests) ─────┤
+                                                    ├── deploy-vercel  (if web/ changed, main only)
+                                                    └── deploy-railway (if api/ changed, main only)
+```
+
+**GitHub Secrets required:**
+- `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` — for Vercel deploy
+- `RAILWAY_TOKEN` — for Railway deploy (project-scoped token)
+
+---
+
+## Deployment URLs
+
+| Service | URL |
+|---------|-----|
+| **Frontend (Vercel)** | https://govmunicipio.vercel.app |
+| **API (Railway)** | https://api-production-eb2b7.up.railway.app |
+| **Railway Dashboard** | https://railway.com/project/3462a872-ff29-4501-915f-be99281dea97 |
+
+See [docs/deploy-railway.md](docs/deploy-railway.md) for full deployment procedures, connection URLs, and troubleshooting.
+
+---
+
+## Documentation Reference
+
+All documentation should be kept in sync with the codebase. When making changes, update the relevant docs:
+
+| Document | Purpose | Update when |
+|----------|---------|-------------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System architecture, modules, patterns | Adding modules, changing routes, or modifying deployment |
+| [docs/SECURITY.md](docs/SECURITY.md) | Security guidelines and rules | Changing auth, adding routes, or modifying access control |
+| [docs/deploy-railway.md](docs/deploy-railway.md) | Railway deployment guide with project IDs | Changing Railway config, adding services, or modifying env vars |
+| [docs/database-er-diagram.mermaid](docs/database-er-diagram.mermaid) | Visual ER diagram of all entities | Adding/modifying entities, relationships, or columns |
+| [docs/plans/](docs/plans/) | Design and implementation plans | Before starting any new feature (create plan first) |
+| [docs/tests/](docs/tests/) | Smoke tests and API collections | Adding new API endpoints |
