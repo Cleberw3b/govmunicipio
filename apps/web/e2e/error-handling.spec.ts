@@ -38,4 +38,13 @@ test.describe('Error Handling — no stack traces shown', () => {
     const body = await page.textContent('body');
     expect(body).not.toContain('Cannot read properties');
   });
+
+  test('404 page does not show stack traces', async ({ page }) => {
+    await page.goto('/nonexistent-route-12345');
+    await page.waitForLoadState('networkidle');
+    const body = await page.textContent('body');
+    expect(body).not.toContain('TypeError');
+    expect(body).not.toContain('Cannot read properties');
+    expect(body).not.toContain('.js:');
+  });
 });

@@ -129,4 +129,77 @@ describe('apiClient', () => {
     const mapped = result.map((item) => item.id);
     expect(mapped).toEqual([]);
   });
+
+  it('clears auth and throws on 401 response', async () => {
+    localStorageMock.setItem('token', 'expired-token');
+    localStorageMock.setItem('principal', '{}');
+    // Mock window.location
+    delete (window as any).location;
+    (window as any).location = { href: '' };
+
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 401,
+      headers: new Headers(),
+    });
+
+    await expect(apiClient('/test')).rejects.toThrow('Unauthorized');
+    expect(localStorageMock.getItem('token')).toBeNull();
+    expect(localStorageMock.getItem('principal')).toBeNull();
+  });
+
+  it('throws on 403 Forbidden', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 403,
+      headers: new Headers(),
+      json: () => Promise.resolve({ message: 'Forbidden' }),
+    });
+    await expect(apiClient('/test')).rejects.toThrow('Forbidden');
+  });
+
+  it('throws on 404 Not Found', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      headers: new Headers(),
+      json: () => Promise.resolve({ message: 'Not Found' }),
+    });
+    await expect(apiClient('/test')).rejects.toThrow('Not Found');
+  });
+
+  it('throws on 500 Server Error', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: new Headers(),
+      json: () => Promise.resolve({ message: 'Internal Server Error' }),
+    });
+    await expect(apiClient('/test')).rejects.toThrow('Internal Server Error');
+  });
+
+  it('handles network failure (fetch throws)', async () => {
+    mockFetch.mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(apiClient('/test')).rejects.toThrow('Failed to fetch');
+  });
+
+  it('handles malformed JSON response gracefully', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: new Headers(),
+      json: () => Promise.reject(new SyntaxError('Unexpected token')),
+    });
+    await expect(apiClient('/test')).rejects.toThrow('Request failed');
+  });
+
+  it('handles error with null message field', async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 422,
+      headers: new Headers(),
+      json: () => Promise.resolve({ message: null }),
+    });
+    await expect(apiClient('/test')).rejects.toThrow('HTTP 422');
+  });
 });
