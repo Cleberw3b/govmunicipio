@@ -1,10 +1,10 @@
 # ─────────────────────────────────────────────────────
-# E2E Test Orchestration
+# E2E Test Orchestration (Playwright)
 #
 # Usage:
-#   docker compose -f e2e/docker-compose.e2e.yml up --build --exit-code-from maestro
+#   docker compose -f e2e/docker-compose.e2e.yml up --build --exit-code-from playwright
 #
-# Exit code from `maestro` service determines success/failure:
+# Exit code from `playwright` service determines success/failure:
 #   0 = all tests passed
 #   non-zero = one or more tests failed
 #
@@ -30,17 +30,14 @@ services:
       retries: 20
       start_period: 10s
 
-  maestro:
+  playwright:
     build:
       context: ..
-      dockerfile: e2e/Dockerfile.maestro
+      dockerfile: e2e/Dockerfile.playwright
     depends_on:
       web:
         condition: service_healthy
     environment:
       - E2E_BASE_URL=http://web:3000
-      - E2E_TIMEOUT=120
     volumes:
-      - ./results:/e2e/results
-    # The exit code of this container is the overall E2E result
-    # docker compose --exit-code-from maestro will propagate it
+      - ./results:/app/apps/web/test-results

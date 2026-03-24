@@ -1,0 +1,33 @@
+# ---------------------------------------------------------
+# Playwright E2E test runner
+# Uses official Playwright image with all browser deps
+# ---------------------------------------------------------
+FROM mcr.microsoft.com/playwright:v1.52.0-noble
+
+WORKDIR /app
+
+# Install pnpm (matching project version)
+RUN npm install -g pnpm@10.32.1
+
+# Copy monorepo structure
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY packages/shared/package.json packages/shared/package.json
+RUN pnpm install --frozen-lockfile
+
+# Copy source files
+COPY packages/shared ./packages/shared
+COPY apps/web ./apps/web
+COPY tsconfig.base.json ./
+
+# Build shared package
+RUN cd packages/shared && pnpm build
+
+# Install Playwright browsers
+WORKDIR /app/apps/web
+RUN npx playwright install chromium
+
+# Results directory
+RUN mkdir -p /app/apps/web/test-results
+
+CMD ["npx", "playwright", "test", "--reporter=junit"]
