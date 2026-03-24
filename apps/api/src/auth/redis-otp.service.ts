@@ -1,9 +1,11 @@
 import {
   Injectable,
   Inject,
+  Optional,
   Logger,
   NotFoundException,
   BadRequestException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -21,10 +23,22 @@ export class OtpService {
     @InjectDataSource()
     private readonly dataSource: DataSource,
     @Inject('REDIS_CLIENT')
-    private readonly redis: Redis,
+    @Optional()
+    private readonly redis: Redis | null,
   ) {}
 
+  private ensureRedis(): Redis {
+    if (!this.redis) {
+      throw new ServiceUnavailableException(
+        'OTP service is unavailable — Redis not configured',
+      );
+    }
+    return this.redis;
+  }
+
   async requestOtp(username: string): Promise<string> {
+    const redis = this.ensureRedis();
+
     const principal = await this.dataSource
       .getRepository(PrincipalEntity)
       .findOne({ where: { username } });
@@ -33,10 +47,9 @@ export class OtpService {
       throw new NotFoundException(`User "${username}" not found`);
     }
 
-    // Invalidate any previous OTP by overwriting the key
     const code = String(Math.floor(100000 + Math.random() * 900000));
 
-    await this.redis.set(
+    await redis.set(
       `otp:${principal.id}`,
       JSON.stringify({ code }),
       'EX',
@@ -55,6 +68,8 @@ export class OtpService {
     code: string,
     newPassword: string,
   ): Promise<void> {
+    const redis = this.ensureRedis();
+
     const principal = await this.dataSource
       .getRepository(PrincipalEntity)
       .findOne({ where: { username } });
@@ -63,7 +78,7 @@ export class OtpService {
       throw new NotFoundException(`User "${username}" not found`);
     }
 
-    const stored = await this.redis.get(`otp:${principal.id}`);
+    const stored = await redis.get(`otp:${principal.id}`);
 
     if (!stored) {
       throw new BadRequestException('OTP code has expired or does not exist');
@@ -75,8 +90,7 @@ export class OtpService {
       throw new BadRequestException('Invalid OTP code');
     }
 
-    // Mark as used by deleting the key
-    await this.redis.del(`otp:${principal.id}`);
+    await redis.del(`otp:${principal.id}`);
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
 

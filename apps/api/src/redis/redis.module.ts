@@ -1,4 +1,4 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
@@ -8,15 +8,39 @@ import Redis from 'ioredis';
     {
       provide: 'REDIS_CLIENT',
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
+      useFactory: (config: ConfigService): Redis | null => {
+        const logger = new Logger('RedisModule');
         const url = config.get<string>('REDIS_URL');
-        if (url) {
-          return new Redis(url);
+        const host = config.get<string>('REDIS_HOST');
+
+        if (!url && !host) {
+          logger.warn(
+            'No REDIS_URL or REDIS_HOST configured — Redis disabled. OTP features will not work.',
+          );
+          return null;
         }
-        return new Redis({
-          host: config.get('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
+
+        const client = url
+          ? new Redis(url, { maxRetriesPerRequest: 3, lazyConnect: true })
+          : new Redis({
+              host,
+              port: config.get<number>('REDIS_PORT', 6379),
+              maxRetriesPerRequest: 3,
+              lazyConnect: true,
+            });
+
+        client.on('error', (err) => {
+          logger.error(`Redis connection error: ${err.message}`);
         });
+
+        client
+          .connect()
+          .then(() => logger.log('Redis connected'))
+          .catch((err) =>
+            logger.warn(`Redis unavailable: ${err.message}. OTP features disabled.`),
+          );
+
+        return client;
       },
     },
   ],
