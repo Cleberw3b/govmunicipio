@@ -138,4 +138,9 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
       - name: Deploy to Railway
-        run: railway up --service api --detach
+        run: >-
+          railway up
+          --project 3462a872-ff29-4501-915f-be99281dea97
+          --service api
+          --environment production
+          --detach
